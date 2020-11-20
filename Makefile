@@ -9,3 +9,6 @@ c.lex.cpp: c.l c.tab.hpp
 
 clean::
 	rm -f c.tab.cpp c.tab.hpp c.lex.cpp cc c.output
+
+run: cc
+	./cc examples/test.c

@@ -1,14 +1,19 @@
 %{
 #include <cstdio>
 #include <iostream>
+#include <cstring>
+#include "c.ast.hpp"
+#include <typeinfo>
+#define YYDEBUG 1
+
 using namespace std;
 
 // stuff from flex that bison needs to know about:
 extern "C" int yylex();
-int yyparse();
+int yyparse(BlockOfFunctions *ast);
 extern "C" FILE *yyin;
  
-void yyerror(const char *s);
+void yyerror(BlockOfFunctions *ast, const char *s);
 %}
 %token	IDENTIFIER I_CONSTANT F_CONSTANT STRING_LITERAL FUNC_NAME SIZEOF
 %token	PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
@@ -28,6 +33,21 @@ void yyerror(const char *s);
 %token	ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
 
 %start translation_unit
+%parse-param {BlockOfFunctions *ast}
+
+%type<typespec> type_specifier
+%type<str> IDENTIFIER declarator direct_declarator
+%type<func> external_declaration function_definition
+%type<blockfunc> translation_unit
+%type<decl> declaration_specifiers
+
+%union {
+	string *str;
+	TypeSpecifier typespec;
+	FunctionDefinition *func;
+	BlockOfFunctions *blockfunc;
+	Declaration *decl;
+}
 %%
 
 primary_expression
@@ -201,16 +221,22 @@ constant_expression
 	;
 
 declaration
-	: declaration_specifiers ';'
-	| declaration_specifiers init_declarator_list ';'
+	: declaration_specifiers ';' { cout << "yep" << endl;}
+	| declaration_specifiers init_declarator_list ';' { cout << "yep" << endl;}
 	| static_assert_declaration
 	;
 
 declaration_specifiers
-	: storage_class_specifier declaration_specifiers
-	| storage_class_specifier
-	| type_specifier declaration_specifiers
-	| type_specifier
+	: storage_class_specifier declaration_specifiers { cout << "nope" << endl; }
+	| storage_class_specifier { cout << "nope" << endl; }
+	| type_specifier declaration_specifiers { cout << "nope" << endl; }
+	| type_specifier {
+		// cout << "nope" << endl;
+		Declaration decl;
+		decl.type = $1;
+		// cout << static_cast<int>($1) << endl;
+		$$ = &decl;
+	}
 	| type_qualifier declaration_specifiers
 	| type_qualifier
 	| function_specifier declaration_specifiers
@@ -239,10 +265,10 @@ storage_class_specifier
 	;
 
 type_specifier
-	: VOID
+	: VOID { $$ = TypeSpecifier::Void; }
 	| CHAR
 	| SHORT
-	| INT
+	| INT { $$ = TypeSpecifier::Int; }
 	| LONG
 	| FLOAT
 	| DOUBLE
@@ -338,11 +364,11 @@ alignment_specifier
 
 declarator
 	: pointer direct_declarator
-	| direct_declarator
+	| direct_declarator { $$ = $1; }
 	;
 
 direct_declarator
-	: IDENTIFIER
+	: IDENTIFIER { $$ = $1; }
 	| '(' declarator ')'
 	| direct_declarator '[' ']'
 	| direct_declarator '[' '*' ']'
@@ -517,29 +543,44 @@ jump_statement
 	;
 
 translation_unit
-	: external_declaration
-	| translation_unit external_declaration
+	: external_declaration { ast->block.push_back(*$1); }
+	| translation_unit external_declaration { ast->block.push_back(*$2); }
 	;
 
 external_declaration
-	: function_definition
+	: function_definition  { $$ = $1; }
 	| declaration
 	;
 
 function_definition
-	: declaration_specifiers declarator declaration_list compound_statement
-	| declaration_specifiers declarator compound_statement
+	: declaration_specifiers declarator declaration_list compound_statement {
+		string name = *$2;
+		cout << "args";
+		FunctionDefinition fn;
+		fn.ret = $1->type;
+		fn.name = name;
+		$$ = &fn;
+	}
+	| declaration_specifiers declarator compound_statement {
+		string name = *$2;
+		cout << name << endl;
+		cout << "nargs";
+		FunctionDefinition fn;
+		fn.ret = $1->type;
+		fn.name = name;
+		$$ = &fn;
+	}
 	;
 
 declaration_list
-	: declaration
-	| declaration_list declaration
+	: declaration { cout << "list" << endl; }
+	| declaration_list declaration { cout << "list" << endl; }
 	;
 
 %%
 #include <stdio.h>
 
-void yyerror(const char *s)
+void yyerror(BlockOfFunctions *ast, const char *s)
 {
 	fflush(stdout);
 	fprintf(stderr, "*** %s\n", s);

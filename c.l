@@ -23,9 +23,11 @@ WS  [ \t\v\n\f]
 
 %{
 #include <stdio.h>
+#include <iostream>
+#include "c.ast.hpp"
 #include "c.tab.hpp"
 
-extern void yyerror(const char *);  /* prints grammar violation message */
+using namespace std;
 
 extern int sym_type(const char *);  /* returns type from symbol table */
 
@@ -86,7 +88,11 @@ static int check_type(void);
 "_Thread_local"                         { return THREAD_LOCAL; }
 "__func__"                              { return FUNC_NAME; }
 
-{L}{A}*					{ return check_type(); }
+{L}{A}*					{
+    string str = string(strdup(yytext));
+    yylval.str = &str;
+    return check_type();
+}
 
 {HP}{H}+{IS}?				{ return I_CONSTANT; }
 {NZ}{D}*{IS}?				{ return I_CONSTANT; }
@@ -175,7 +181,7 @@ static void comment(void)
             if (c == 0)
                 break;
         }
-    yyerror("unterminated comment");
+    // yyerror("unterminated comment");
 }
 
 static int check_type(void)
