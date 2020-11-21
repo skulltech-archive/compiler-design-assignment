@@ -8,6 +8,7 @@ class Expression;
 class Statement;
 class IntLiteral;
 class StrLiteral;
+class Declaration;
 
 enum class TypeSpecifier {Void, Int, Str};
 
@@ -22,6 +23,12 @@ class FunctionDefinition {
         output << "function: " << static_cast<int>(fn.ret) << " " << fn.name << endl; 
         return output;
     }
+};
+
+class FunctionSignature {
+    public:
+    string name;
+    vector<Declaration> *arguments;
 };
 
 class BlockOfFunctions {

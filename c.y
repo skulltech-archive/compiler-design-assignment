@@ -35,19 +35,23 @@ void yyerror(BlockOfFunctions *ast, const char *s);
 %start translation_unit
 %parse-param {BlockOfFunctions *ast}
 
-%type<typespec> type_specifier
-%type<str> IDENTIFIER declarator direct_declarator
-%type<func> external_declaration function_definition
-%type<blockfunc> translation_unit
-%type<decl> declaration_specifiers
-
 %union {
 	string *str;
 	TypeSpecifier typespec;
 	FunctionDefinition *func;
 	BlockOfFunctions *blockfunc;
 	Declaration *decl;
+	vector<Declaration> *decls;
+	FunctionSignature *funcsig;
 }
+
+%type<typespec> type_specifier declaration_specifiers
+%type<str> IDENTIFIER
+%type<func> external_declaration function_definition
+%type<blockfunc> translation_unit
+%type<decl> parameter_declaration
+%type<decls> parameter_list parameter_type_list
+%type<funcsig> declarator direct_declarator
 %%
 
 primary_expression
@@ -221,22 +225,16 @@ constant_expression
 	;
 
 declaration
-	: declaration_specifiers ';' { cout << "yep" << endl;}
-	| declaration_specifiers init_declarator_list ';' { cout << "yep" << endl;}
+	: declaration_specifiers ';'
+	| declaration_specifiers init_declarator_list ';'
 	| static_assert_declaration
 	;
 
 declaration_specifiers
-	: storage_class_specifier declaration_specifiers { cout << "nope" << endl; }
-	| storage_class_specifier { cout << "nope" << endl; }
-	| type_specifier declaration_specifiers { cout << "nope" << endl; }
-	| type_specifier {
-		// cout << "nope" << endl;
-		Declaration decl;
-		decl.type = $1;
-		// cout << static_cast<int>($1) << endl;
-		$$ = &decl;
-	}
+	: storage_class_specifier declaration_specifiers
+	| storage_class_specifier
+	| type_specifier declaration_specifiers
+	| type_specifier { $$ = $1; }
 	| type_qualifier declaration_specifiers
 	| type_qualifier
 	| function_specifier declaration_specifiers
@@ -364,11 +362,20 @@ alignment_specifier
 
 declarator
 	: pointer direct_declarator
-	| direct_declarator { $$ = $1; }
+	| direct_declarator {
+		cout << "direct declarator" << endl;
+		cout << $$->name << endl;
+		$$ = $1;
+	}
 	;
 
 direct_declarator
-	: IDENTIFIER { $$ = $1; }
+	: IDENTIFIER {
+		FunctionSignature sig;
+		string name = *$1;
+		sig.name = name;
+		$$ = &sig;
+	}
 	| '(' declarator ')'
 	| direct_declarator '[' ']'
 	| direct_declarator '[' '*' ']'
@@ -379,8 +386,10 @@ direct_declarator
 	| direct_declarator '[' type_qualifier_list assignment_expression ']'
 	| direct_declarator '[' type_qualifier_list ']'
 	| direct_declarator '[' assignment_expression ']'
-	| direct_declarator '(' parameter_type_list ')'
-	| direct_declarator '(' ')'
+	| direct_declarator '(' parameter_type_list ')' {
+		$$ = $1; 
+	}
+	| direct_declarator '(' ')' { $$ = $1; cout << "without args" << endl; }
 	| direct_declarator '(' identifier_list ')'
 	;
 
@@ -399,16 +408,29 @@ type_qualifier_list
 
 parameter_type_list
 	: parameter_list ',' ELLIPSIS
-	| parameter_list
+	| parameter_list { $$ = $1; }
 	;
 
 parameter_list
-	: parameter_declaration
-	| parameter_list ',' parameter_declaration
+	: parameter_declaration {
+		// vector<Declaration> params;
+		// params.push_back(*$1);
+		// $$ = &params;
+	}
+	| parameter_list ',' parameter_declaration {
+		// $1->push_back(*$3);
+		// $$ = $1;
+	}
 	;
 
 parameter_declaration
-	: declaration_specifiers declarator
+	: declaration_specifiers declarator {
+		Declaration decl;
+		// string name = $2->name;
+		// cout << name << endl;
+		// decl.type = $1;
+		// decl.name = &$2->name;
+	}
 	| declaration_specifiers abstract_declarator
 	| declaration_specifiers
 	;
@@ -553,28 +575,13 @@ external_declaration
 	;
 
 function_definition
-	: declaration_specifiers declarator declaration_list compound_statement {
-		string name = *$2;
-		cout << "args";
+	: declaration_specifiers declarator compound_statement {
+		string name = $2->name;
 		FunctionDefinition fn;
-		fn.ret = $1->type;
+		fn.ret = $1;
 		fn.name = name;
 		$$ = &fn;
 	}
-	| declaration_specifiers declarator compound_statement {
-		string name = *$2;
-		cout << name << endl;
-		cout << "nargs";
-		FunctionDefinition fn;
-		fn.ret = $1->type;
-		fn.name = name;
-		$$ = &fn;
-	}
-	;
-
-declaration_list
-	: declaration { cout << "list" << endl; }
-	| declaration_list declaration { cout << "list" << endl; }
 	;
 
 %%
