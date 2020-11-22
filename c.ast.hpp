@@ -16,8 +16,8 @@ class FunctionDefinition {
     public:
     TypeSpecifier ret;
     string name;
-    // vector<Declaration> *arguments;
-    // Statement *content;
+    vector<Declaration> arguments;
+    // Statement content;
     
     friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
         output << "function: " << static_cast<int>(fn.ret) << " " << fn.name << endl; 
@@ -25,10 +25,29 @@ class FunctionDefinition {
     }
 };
 
+class Declaration {
+    public:
+    TypeSpecifier type;
+    bool constant;
+    string name;
+};
+
 class FunctionSignature {
     public:
     string name;
-    vector<Declaration> *arguments;
+    // vector<string> arguments;
+};
+
+enum class DeclaratorType {Name, FuncSig};
+struct Declarator {
+    DeclaratorType type;
+    union {
+        string name;
+        FunctionSignature funcsig;
+    };
+    Declarator() {}
+    Declarator(const Declarator&decl) {}
+    ~Declarator() {}
 };
 
 class BlockOfFunctions {
@@ -42,15 +61,6 @@ class BlockOfFunctions {
         return output;
     }
 };
-
-
-class Declaration {
-    public:
-    TypeSpecifier type;
-    bool constant;
-    string name;
-};
-
 
 
 
@@ -80,7 +90,6 @@ class Variable: Literal {
     string name;
 };
 
-
 enum class UnaryOperator {BitwiseAnd, Star, Plus, Minus, Tilde, Exclaim, Or, And, Greater, Less, GreaterEqual, LessEqual};
 class UnaryExpression {
     public:
@@ -104,4 +113,3 @@ class Statement {
     vector<Statement> *block;
     FunctionDefinition *func;
 };
-

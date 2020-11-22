@@ -363,8 +363,6 @@ alignment_specifier
 declarator
 	: pointer direct_declarator
 	| direct_declarator {
-		cout << "direct declarator" << endl;
-		cout << $$->name << endl;
 		$$ = $1;
 	}
 	;
@@ -387,9 +385,9 @@ direct_declarator
 	| direct_declarator '[' type_qualifier_list ']'
 	| direct_declarator '[' assignment_expression ']'
 	| direct_declarator '(' parameter_type_list ')' {
-		$$ = $1; 
+		$$ = $1;
 	}
-	| direct_declarator '(' ')' { $$ = $1; cout << "without args" << endl; }
+	| direct_declarator '(' ')' { $$ = $1; }
 	| direct_declarator '(' identifier_list ')'
 	;
 
@@ -413,23 +411,23 @@ parameter_type_list
 
 parameter_list
 	: parameter_declaration {
-		// vector<Declaration> params;
-		// params.push_back(*$1);
-		// $$ = &params;
+		vector<Declaration> params;
+		params.push_back(*$1);
+		$$ = &params;
 	}
 	| parameter_list ',' parameter_declaration {
-		// $1->push_back(*$3);
-		// $$ = $1;
+		$1->push_back(*$3);
+		$$ = $1;
 	}
 	;
 
 parameter_declaration
 	: declaration_specifiers declarator {
 		Declaration decl;
-		// string name = $2->name;
-		// cout << name << endl;
-		// decl.type = $1;
-		// decl.name = &$2->name;
+		string name = $2->name;
+		decl.type = $1;
+		decl.name = name;
+		$$ = &decl;
 	}
 	| declaration_specifiers abstract_declarator
 	| declaration_specifiers

@@ -1,1 +1,1 @@
-void empty() { }
+void empty(int a) { }
