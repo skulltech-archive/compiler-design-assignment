@@ -4,13 +4,9 @@
 using namespace std;
 
 class FunctionDefinition;
-class Expression;
-class Statement;
-class IntLiteral;
-class StrLiteral;
 class Declaration;
 
-enum class TypeSpecifier {Void, Int, Str};
+enum class TypeSpecifier {Str, Int, Void};
 
 class FunctionDefinition {
     public:
@@ -20,7 +16,8 @@ class FunctionDefinition {
     // Statement content;
     
     friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
-        output << "function: " << static_cast<int>(fn.ret) << " " << fn.name << endl; 
+        vector<string> typestrs {"void", "int", "str"};
+        output << "function: " << typestrs.at(static_cast<int>(fn.ret)) << " " << fn.name; 
         return output;
     }
 };
@@ -30,25 +27,40 @@ class Declaration {
     TypeSpecifier type;
     bool constant;
     string name;
+
+    friend ostream &operator<<(ostream &output, const Declaration &decl) {
+        vector<string> typestrs {"void", "int", "str"};
+        cout << "declaration: " << typestrs.at(static_cast<int>(decl.type)) << " " << decl.name;
+        return output;
+    }
 };
 
-class FunctionSignature {
+class Signature {
     public:
     string name;
     // vector<string> arguments;
+    friend ostream &operator<<(ostream &output, const Signature &sig) {
+        cout << "signature: " << sig.name;
+        return output;
+    }
 };
 
-enum class DeclaratorType {Name, FuncSig};
-struct Declarator {
-    DeclaratorType type;
-    union {
-        string name;
-        FunctionSignature funcsig;
-    };
-    Declarator() {}
-    Declarator(const Declarator&decl) {}
-    ~Declarator() {}
-};
+class Expression;
+class Statement;
+class IntLiteral;
+class StrLiteral;
+
+// enum class DeclaratorType {Name, FuncSig};
+// struct Declarator {
+//     DeclaratorType type;
+//     union {
+//         string name;
+//         FunctionSignature funcsig;
+//     };
+//     Declarator() {}
+//     Declarator(const Declarator&decl) {}
+//     ~Declarator() {}
+// };
 
 class BlockOfFunctions {
     public:
@@ -56,7 +68,7 @@ class BlockOfFunctions {
     
     friend ostream &operator<<(ostream &output, const BlockOfFunctions &block) {
         for (auto& it : block.block) {
-            output << it << endl; 
+            output << it; 
         }
         return output;
     }
