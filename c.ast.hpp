@@ -6,7 +6,19 @@ using namespace std;
 class FunctionDefinition;
 class Declaration;
 
-enum class TypeSpecifier {Str, Int, Void};
+enum class TypeSpecifier {Void, Int, Str};
+class Declaration {
+    public:
+    TypeSpecifier type;
+    bool constant;
+    string name;
+
+    friend ostream &operator<<(ostream &output, const Declaration &decl) {
+        vector<string> typestrs {"void", "int", "str"};
+        cout << typestrs.at(static_cast<int>(decl.type)) << " " << decl.name;
+        return output;
+    }
+};
 
 class FunctionDefinition {
     public:
@@ -17,20 +29,11 @@ class FunctionDefinition {
     
     friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
         vector<string> typestrs {"void", "int", "str"};
-        output << "function: " << typestrs.at(static_cast<int>(fn.ret)) << " " << fn.name; 
-        return output;
-    }
-};
-
-class Declaration {
-    public:
-    TypeSpecifier type;
-    bool constant;
-    string name;
-
-    friend ostream &operator<<(ostream &output, const Declaration &decl) {
-        vector<string> typestrs {"void", "int", "str"};
-        cout << "declaration: " << typestrs.at(static_cast<int>(decl.type)) << " " << decl.name;
+        output << "function " << typestrs.at(static_cast<int>(fn.ret)) << " " << fn.name << " (";
+        for (auto& it : fn.arguments) {
+            output << it << ", ";
+        }
+        cout << ")";
         return output;
     }
 };
@@ -38,9 +41,13 @@ class Declaration {
 class Signature {
     public:
     string name;
-    // vector<string> arguments;
+    vector<Declaration> arguments;
     friend ostream &operator<<(ostream &output, const Signature &sig) {
-        cout << "signature: " << sig.name;
+        cout << sig.name << "(";
+        for (auto& it : sig.arguments) {
+            output << it << ", "; 
+        }
+        cout << ")";
         return output;
     }
 };
@@ -68,36 +75,32 @@ class BlockOfFunctions {
     
     friend ostream &operator<<(ostream &output, const BlockOfFunctions &block) {
         for (auto& it : block.block) {
-            output << it; 
+            output << it << endl; 
         }
         return output;
     }
 };
 
-
-
-
-class LiteralType {
-    public:
-    enum Node {Int, Str, Ident};
-};
-
+enum class LiteralType {Int, Str, Var};
 class Literal {
     public:
     LiteralType type;
+    IntLiteral intl;
+    StrLiteral strl;
+    Variable var;
 };
 
-class IntLiteral: Literal {
+class IntLiteral {
     public:
     int value;
 };
 
-class StrLiteral: Literal {
+class StrLiteral {
     public:
     string value;
 };
 
-class Variable: Literal {
+class Variable {
     public:
     string name;
 };

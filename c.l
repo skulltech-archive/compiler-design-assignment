@@ -89,8 +89,8 @@ static int check_type(void);
 "__func__"                              { return FUNC_NAME; }
 
 {L}{A}*					{
-    string str = string(strdup(yytext));
-    yylval.str = &str;
+    string *str = new string(strdup(yytext));
+    yylval.str = str;
     return check_type();
 }
 

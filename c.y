@@ -60,66 +60,50 @@ void yyerror(BlockOfFunctions *ast, const char *s);
 %%
 
 declaration_specifiers
-    : type_specifier { TRACE $$ = $1; }
+    : type_specifier
     ;
 
 type_specifier
-    : VOID {
-        cout << "creating void" << endl;
-        $$ = TypeSpecifier::Void; }
-    | INT { cout << "creating int" << endl; $$ = TypeSpecifier::Int; }
+    : VOID { $$ = TypeSpecifier::Void; }
+    | INT { $$ = TypeSpecifier::Int; }
     ;
 
 declarator
-    : direct_declarator { $$ = $1; }
+    : direct_declarator
     ;
 
 direct_declarator
     : IDENTIFIER {
-        Signature sig;
-        string name = *$1;
-        sig.name = name;
-        $$ = &sig;
-        cout << "creating identifier " << sig.name << endl;
+        auto *sig = new Signature();
+        sig->name = *$1;
+        $$ = sig;
     }
     | direct_declarator '(' parameter_type_list ')' {
-        cout << "with argument" << endl;
-        
-        cout << "got declarator " << *$1 << endl;
-        cout << "creating declaration " << $3->at(0) << endl;
+        $1->arguments = *$3;
         $$ = $1;
     }
-    | direct_declarator '(' ')' {
-        $$ = $1;
-        cout << "argument less function" << endl; 
-    }
+    | direct_declarator '(' ')'
     ;
 
 parameter_type_list
-    : parameter_list {
-        $$ = $1;
-        cout << "creating parameter type list " << $$->at(0) << endl; 
-    }
+    : parameter_list
     ;
 
 parameter_list
     : parameter_declaration {
-        vector<Declaration> params;
-        cout << "pushing back " << *$1 << endl;
-        params.push_back(*$1);
-        $$ = &params;
-        cout << "creating parameter declaration " << $$->at(0) << endl;
+        auto *params = new vector<Declaration>;
+        params->push_back(*$1);
+        $$ = params;
     }
     ;
 
 parameter_declaration
     : declaration_specifiers declarator {
-        cout << "creating param declaration" << endl;
-        Declaration decl;
-        string name = $2->name;
-        decl.type = $1;
-        decl.name = name;
-        $$ = &decl;
+        auto *decl = new Declaration();
+        decl->type = $1;
+        decl->name = $2->name;
+        delete $2;
+        $$ = decl;
     }
     ;
 
@@ -129,16 +113,17 @@ translation_unit
     ;
 
 external_declaration
-    : function_definition  { TRACE $$ = $1; }
+    : function_definition
     ;
 
 function_definition
     : declaration_specifiers declarator '{' '}' {
-        string name = $2->name;
-        FunctionDefinition fn;
-        fn.ret = $1;
-        fn.name = name;
-        $$ = &fn;
+        auto *fn = new FunctionDefinition();
+        fn->ret = $1;
+        fn->name = $2->name;
+        fn->arguments = $2->arguments;
+        delete $2;
+        $$ = fn;
     }
     ;
 
