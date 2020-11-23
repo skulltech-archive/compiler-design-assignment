@@ -1,3 +1,5 @@
+#pragma once
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -5,32 +7,69 @@ using namespace std;
 
 class FunctionDefinition;
 class Declaration;
+class IntLiteral;
+class Expression;
+class Statement;
+class IntLiteral;
+class Variable;
+class BlockItem;
 
-enum class TypeSpecifier {Void, Int, Str};
+enum class TypeSpecifier { Void, Int, Char };
+ostream &operator<<(ostream &output, const TypeSpecifier &type);
+
 class Declaration {
-    public:
+   public:
     TypeSpecifier type;
     bool constant;
     string name;
 
     friend ostream &operator<<(ostream &output, const Declaration &decl) {
-        vector<string> typestrs {"void", "int", "str"};
-        cout << typestrs.at(static_cast<int>(decl.type)) << " " << decl.name;
+        vector<string> typestrs{"void", "int", "char"};
+        cout << decl.type << " " << decl.name;
+        return output;
+    }
+};
+
+enum class BlockItemType { Stmt, Decl };
+class BlockItem {
+   public:
+    BlockItemType btype;
+    virtual void print(ostream &output) const {};
+    friend ostream &operator<<(ostream &output, const BlockItem &block) {
+        block.print(output);
         return output;
     }
 };
 
 class FunctionDefinition {
-    public:
+   public:
     TypeSpecifier ret;
     string name;
     vector<Declaration> arguments;
-    // Statement content;
-    
+    vector<BlockItem*> content;
+
     friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
-        vector<string> typestrs {"void", "int", "str"};
-        output << "function " << typestrs.at(static_cast<int>(fn.ret)) << " " << fn.name << " (";
-        for (auto& it : fn.arguments) {
+        vector<string> typestrs{"void", "int", "str"};
+        output << "function " << typestrs.at(static_cast<int>(fn.ret)) << " "
+               << fn.name << " (";
+        for (auto &it : fn.arguments) {
+            output << it << ", ";
+        }
+        cout << ")";
+        for (auto it: fn.content) {
+            cout << endl << "    " << *it;
+        }
+        return output;
+    }
+};
+
+class Signature {
+   public:
+    string name;
+    vector<Declaration> arguments;
+    friend ostream &operator<<(ostream &output, const Signature &sig) {
+        cout << sig.name << "(";
+        for (auto &it : sig.arguments) {
             output << it << ", ";
         }
         cout << ")";
@@ -38,93 +77,101 @@ class FunctionDefinition {
     }
 };
 
-class Signature {
-    public:
-    string name;
-    vector<Declaration> arguments;
-    friend ostream &operator<<(ostream &output, const Signature &sig) {
-        cout << sig.name << "(";
-        for (auto& it : sig.arguments) {
-            output << it << ", "; 
-        }
-        cout << ")";
-        return output;
-    }
-};
-
-class Expression;
-class Statement;
-class IntLiteral;
-class StrLiteral;
-
-// enum class DeclaratorType {Name, FuncSig};
-// struct Declarator {
-//     DeclaratorType type;
-//     union {
-//         string name;
-//         FunctionSignature funcsig;
-//     };
-//     Declarator() {}
-//     Declarator(const Declarator&decl) {}
-//     ~Declarator() {}
-// };
-
 class BlockOfFunctions {
-    public:
+   public:
     vector<FunctionDefinition> block;
-    
+
     friend ostream &operator<<(ostream &output, const BlockOfFunctions &block) {
-        for (auto& it : block.block) {
-            output << it << endl; 
+        for (auto &it : block.block) {
+            output << it << endl;
         }
         return output;
     }
 };
 
-enum class LiteralType {Int, Str, Var};
-class Literal {
-    public:
-    LiteralType type;
-    IntLiteral intl;
-    StrLiteral strl;
-    Variable var;
+
+enum class StatementType { Expr };
+class Statement : public BlockItem {
+   public:
+    StatementType stype;
 };
 
-class IntLiteral {
-    public:
+enum class ExpressionType { Lit, Unary, Assign };
+ostream &operator<<(ostream &output, const ExpressionType &type);
+
+class Expression : public Statement {
+   public:
+    ExpressionType etype;
+    Expression(ExpressionType type) : etype(type) {}
+};
+
+enum class LiteralType { Int, Var };
+ostream &operator<<(ostream &output, const LiteralType &type);
+
+class Literal : public Expression {
+   public:
+    LiteralType ltype;
+    Literal(LiteralType type) : Expression(ExpressionType::Lit), ltype(type){};
+};
+
+class IntLiteral : public Literal {
+   public:
     int value;
+    IntLiteral(int i) : Literal(LiteralType::Int), value(i) {}
+    virtual void print(ostream &output) const { output << value; }
 };
 
-class StrLiteral {
-    public:
-    string value;
-};
-
-class Variable {
-    public:
+class Variable : public Literal {
+   public:
     string name;
+    Variable(string s) : Literal(LiteralType::Var), name(s) {}
+    virtual void print(ostream &output) const { output << name; }
 };
 
-enum class UnaryOperator {BitwiseAnd, Star, Plus, Minus, Tilde, Exclaim, Or, And, Greater, Less, GreaterEqual, LessEqual};
-class UnaryExpression {
-    public:
+enum class UnaryOperator {
+    Multiply,
+    Divide,
+    Plus,
+    Minus,
+    Left,
+    Right,
+    Less,
+    Greater,
+    LessEqual,
+    GreaterEqual,
+    Equal,
+    NotEqual,
+    BitwiseAnd,
+    BitwiseXor,
+    BitwiseOr,
+    And,
+    Or
+};
+ostream &operator<<(ostream &output, const UnaryOperator &type);
+
+class UnaryExpression : public Expression {
+   public:
     UnaryOperator op;
     Expression *left;
     Expression *right;
+    UnaryExpression(UnaryOperator o, Expression *l, Expression *r)
+        : Expression(ExpressionType::Unary), op(o), left(l), right(r) {}
+    virtual void print(ostream &output) const {
+        output << op << "(" << *left << ", " << *right << ")";
+    }
 };
 
-enum class ExpressionType {Lit, Unary};
-class Expression {
-    ExpressionType type;
-    Literal *lit;
-    UnaryExpression *unary;
-};
-
-enum class StatementType {Decl, Block, Func, Expr};
-class Statement {
-    public:
-    StatementType type;
-    Declaration *decl;
-    vector<Statement> *block;
-    FunctionDefinition *func;
+class Assignment : public Expression {
+   public:
+    Variable *var;
+    Expression *expr;
+    Assignment(Variable *v, Expression *e)
+        : Expression(ExpressionType::Assign), var(v), expr(e) {}
+    Assignment(Expression *e) : Expression(ExpressionType::Assign), expr(e) {}
+    virtual void print(ostream &output) const {
+        if (var != NULL) {
+            output << *var << " = ";
+        }
+        output << *expr;
+    }
 };

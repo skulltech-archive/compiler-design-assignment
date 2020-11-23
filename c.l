@@ -88,16 +88,12 @@ static int check_type(void);
 "_Thread_local"                         { return THREAD_LOCAL; }
 "__func__"                              { return FUNC_NAME; }
 
-{L}{A}*					{
-    string *str = new string(strdup(yytext));
-    yylval.str = str;
-    return check_type();
-}
+{L}{A}*	                                { return check_type(); }
 
-{HP}{H}+{IS}?				{ return I_CONSTANT; }
-{NZ}{D}*{IS}?				{ return I_CONSTANT; }
-"0"{O}*{IS}?				{ return I_CONSTANT; }
-{CP}?"'"([^'\\\n]|{ES})+"'"		{ return I_CONSTANT; }
+{HP}{H}+{IS}?               { yylval.num = atoi(strdup(yytext)); return I_CONSTANT; }
+{NZ}{D}*{IS}?				{ yylval.num = atoi(strdup(yytext)); return I_CONSTANT; }
+"0"{O}*{IS}?				{ yylval.num = atoi(strdup(yytext)); return I_CONSTANT; }
+{CP}?"'"([^'\\\n]|{ES})+"'"		{ yylval.num = atoi(strdup(yytext)); return I_CONSTANT; }
 
 {D}+{E}{FS}?				{ return F_CONSTANT; }
 {D}*"."{D}+{E}?{FS}?			{ return F_CONSTANT; }
@@ -193,6 +189,8 @@ static int check_type(void)
     case ENUMERATION_CONSTANT:        /* previously defined */
         return ENUMERATION_CONSTANT;
     default:                          /* includes undefined */
+        string *str = new string(strdup(yytext));
+        yylval.str = str;
         return IDENTIFIER;
     }
 }

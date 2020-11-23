@@ -14,7 +14,6 @@ static void usage() {
 }
 
 int main(int argc, char **argv) {
-  int yydebug = 1;
   if (argc != 2) {
     usage();
     exit(1);
@@ -23,7 +22,6 @@ int main(int argc, char **argv) {
   yyin = fopen(filename, "r");
   assert(yyin);
   BlockOfFunctions ast;
-  yydebug = 1;
   int ret = yyparse(&ast);
   cout << "retv = " << ret << endl;
   cout << ast << endl;
