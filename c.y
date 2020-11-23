@@ -51,6 +51,10 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
 	Statement *stmt;
 	BlockItem *block;
 	vector<BlockItem*> *blocks;
+    Conditional *cond;
+    While *whl;
+    Return *ret;
+    CompoundStatement *comp;
 }
 
 %type<typespec> type_specifier declaration_specifiers
@@ -58,15 +62,19 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
 %type<num> I_CONSTANT constant
 %type<func> external_declaration function_definition
 %type<root> translation_unit
-%type<decl> parameter_declaration
+%type<decl> parameter_declaration declaration
 %type<decls> parameter_list parameter_type_list
-%type<sig> declarator direct_declarator
+%type<sig> declarator direct_declarator init_declarator init_declarator_list
 %type<lit> cast_expression unary_expression
 %type<expr> multiplicative_expression shift_expression additive_expression relational_expression equality_expression inclusive_or_expression exclusive_or_expression and_expression logical_or_expression logical_and_expression primary_expression conditional_expression expression expression_statement
 %type<assign> assignment_expression
 %type<stmt> statement
 %type<block> block_item
-%type<blocks> block_item_list compound_statement
+%type<blocks> block_item_list 
+%type<cond> selection_statement
+%type<whl> iteration_statement
+%type<ret> jump_statement
+%type<comp> compound_statement
 %%
 
 primary_expression
@@ -305,7 +313,10 @@ constant_expression
 
 declaration
 	: declaration_specifiers ';'
-	| declaration_specifiers init_declarator_list ';'
+	| declaration_specifiers init_declarator_list ';' {
+        auto *decl = new Declaration($1, $2->name);
+        $$ = decl;
+    }
 	| static_assert_declaration
 	;
 
@@ -500,9 +511,7 @@ parameter_list
 
 parameter_declaration
 	: declaration_specifiers declarator {
-        auto *decl = new Declaration();
-        decl->type = $1;
-        decl->name = $2->name;
+        auto *decl = new Declaration($1, $2->name);
         $$ = decl;
     }
 	| declaration_specifiers abstract_declarator
@@ -597,10 +606,13 @@ labeled_statement
 
 compound_statement
 	: '{' '}' {
-		auto *blocks = new vector<BlockItem*>();
-		$$ = blocks;
+        auto *comp = new CompoundStatement();
+        $$ = comp;
 	}
-	| '{'  block_item_list '}' { $$ = $2; }
+	| '{'  block_item_list '}' {
+        auto *comp = new CompoundStatement($2);
+        $$ = comp;
+    }
 	;
 
 block_item_list
@@ -609,7 +621,10 @@ block_item_list
 		blocks->push_back($1);
 		$$ = blocks;
 	}
-	| block_item_list block_item
+	| block_item_list block_item {
+        $1->push_back($2);
+        $$ = $1;
+    }
 	;
 
 block_item
@@ -623,13 +638,22 @@ expression_statement
 	;
 
 selection_statement
-	: IF '(' expression ')' statement ELSE statement
-	| IF '(' expression ')' statement
+	: IF '(' expression ')' statement ELSE statement {
+        auto *cond = new Conditional($3, $5, $7);
+        $$ = cond;
+    }
+	| IF '(' expression ')' statement {
+        auto *cond = new Conditional($3, $5);
+        $$ = cond;
+    }
 	| SWITCH '(' expression ')' statement
 	;
 
 iteration_statement
-	: WHILE '(' expression ')' statement
+	: WHILE '(' expression ')' statement {
+        auto *whl = new While($3, $5);
+        $$ = whl;
+    }
 	| DO statement WHILE '(' expression ')' ';'
 	| FOR '(' expression_statement expression_statement ')' statement
 	| FOR '(' expression_statement expression_statement expression ')' statement
@@ -642,7 +666,10 @@ jump_statement
 	| CONTINUE ';'
 	| BREAK ';'
 	| RETURN ';'
-	| RETURN expression ';'
+	| RETURN expression ';' {
+        auto *ret = new Return($2);
+        $$ = ret;
+    }
 	;
 
 translation_unit

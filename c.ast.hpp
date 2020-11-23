@@ -14,20 +14,11 @@ class IntLiteral;
 class Variable;
 class BlockItem;
 
+
 enum class TypeSpecifier { Void, Int, Char };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
-class Declaration {
-   public:
-    TypeSpecifier type;
-    bool constant;
-    string name;
 
-    friend ostream &operator<<(ostream &output, const Declaration &decl) {
-        cout << decl.type << " " << decl.name;
-        return output;
-    }
-};
 
 enum class BlockItemType { Stmt, Decl };
 class BlockItem {
@@ -40,30 +31,18 @@ class BlockItem {
     }
 };
 
-class FunctionDefinition {
+class Declaration: public BlockItem {
    public:
-    TypeSpecifier ret;
+    TypeSpecifier type;
+    bool constant;
     string name;
-    vector<Declaration *> *arguments;
-    vector<BlockItem *> *content;
-    FunctionDefinition(TypeSpecifier t, string n, vector<Declaration *> *a,
-                       vector<BlockItem *> *c)
-        : ret(t), name(n), arguments(a), content(c) {}
-
-    friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
-        output << "function " << fn.ret << " " << fn.name << " (";
-        if (fn.arguments != NULL) {
-            for (auto it : *fn.arguments) {
-                output << *it << ", ";
-            }
-        }
-        cout << ")";
-        if (fn.content != NULL) {
-            for (auto it : *fn.content) {
-                cout << endl << string(4, ' ') << *it;
-            }
-        }
+    Declaration(TypeSpecifier t, string n): type(t), name(n) {}
+    friend ostream &operator<<(ostream &output, const Declaration &decl) {
+        output << decl.type << " " << decl.name;
         return output;
+    }
+    virtual void print(ostream &output) {
+        output << type << " " << name;
     }
 };
 
@@ -72,13 +51,13 @@ class Signature {
     string name;
     vector<Declaration *> *arguments;
     friend ostream &operator<<(ostream &output, const Signature &sig) {
-        cout << sig.name << "(";
+        output << sig.name << "(";
         if (sig.arguments != NULL) {
             for (auto it : *sig.arguments) {
                 output << *it << ", ";
             }
         }
-        cout << ")";
+        output << ")";
         return output;
     }
 };
@@ -87,6 +66,24 @@ enum class StatementType { Expr };
 class Statement : public BlockItem {
    public:
     StatementType stype;
+};
+
+class CompoundStatement : public Statement {
+   public:
+    vector<BlockItem *> *items;
+    CompoundStatement() { items = new vector<BlockItem *>(); }
+    CompoundStatement(vector<BlockItem *> *i) : items(i) {}
+    virtual void print(ostream &output) {
+        for (auto it : *items) {
+            output << *it << endl;
+        }
+    }
+    friend ostream &operator<<(ostream &output, const CompoundStatement &comp) {
+        for (auto it : *comp.items) {
+            output << *it << endl;
+        }
+        return output;
+    }
 };
 
 enum class ExpressionType { Lit, Unary, Assign };
@@ -192,7 +189,7 @@ class While : public Statement {
     Statement *stmt;
     While(Expression *c, Statement *s) : cond(c), stmt(s) {}
     virtual void print(ostream &output) const {
-        output << "While (" << *cond << ")" << endl << *stmt;
+        output << "While (" << *cond << ") : " << *stmt;
     }
 };
 
@@ -201,4 +198,30 @@ class Return : public Statement {
     Expression *expr;
     Return(Expression *e) : expr(e) {}
     virtual void print(ostream &output) const { output << "Return " << *expr; }
+};
+
+
+class FunctionDefinition {
+   public:
+    TypeSpecifier ret;
+    string name;
+    vector<Declaration *> *arguments;
+    CompoundStatement *content;
+    FunctionDefinition(TypeSpecifier t, string n, vector<Declaration *> *a,
+                       CompoundStatement *c)
+        : ret(t), name(n), arguments(a), content(c) {}
+
+    friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
+        output << "function " << fn.ret << " " << fn.name << " (";
+        if (fn.arguments != NULL) {
+            for (auto it : *fn.arguments) {
+                output << *it << ", ";
+            }
+        }
+        output << ")";
+        if (fn.content != NULL) {
+            output << *fn.content;
+        }
+        return output;
+    }
 };
