@@ -6,7 +6,7 @@
 #include "c.tab.hpp"
 
 extern "C" int yylex();
-int yyparse(BlockOfFunctions *ast);
+void yyerror(vector<FunctionDefinition*> *ast, const char *s);
 extern "C" FILE *yyin;
 
 static void usage() {
@@ -21,9 +21,11 @@ int main(int argc, char **argv) {
   char const *filename = argv[1];
   yyin = fopen(filename, "r");
   assert(yyin);
-  BlockOfFunctions ast;
+  vector<FunctionDefinition*> ast;
   int ret = yyparse(&ast);
   cout << "retv = " << ret << endl;
-  cout << ast << endl;
+  for (const auto &it: ast) {
+    cout << *it << endl;
+  }
   exit(0);
 }

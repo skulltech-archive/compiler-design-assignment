@@ -9,10 +9,10 @@ using namespace std;
 
 // stuff from flex that bison needs to know about:
 extern "C" int yylex();
-int yyparse(BlockOfFunctions *ast);
+int yyparse(vector<FunctionDefinition*> *ast);
 extern "C" FILE *yyin;
  
-void yyerror(BlockOfFunctions *ast, const char *s);
+void yyerror(vector<FunctionDefinition*> *ast, const char *s);
 
 #define TRACE printf("reduce at line %d\n", __LINE__);
 %}
@@ -34,16 +34,16 @@ void yyerror(BlockOfFunctions *ast, const char *s);
 %token	ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
 
 %start translation_unit
-%parse-param {BlockOfFunctions *ast}
+%parse-param {vector<FunctionDefinition*> *ast}
 
 %union {
     string *str;
     int num;
     TypeSpecifier typespec;
     FunctionDefinition *func;
-    BlockOfFunctions *blockfunc;
+    vector<FunctionDefinition*> *root;
     Declaration *decl;
-    vector<Declaration> *decls;
+    vector<Declaration*> *decls;
     Signature *sig;
     Literal *lit;
     Expression *expr;
@@ -57,7 +57,7 @@ void yyerror(BlockOfFunctions *ast, const char *s);
 %type<str> IDENTIFIER
 %type<num> I_CONSTANT constant
 %type<func> external_declaration function_definition
-%type<blockfunc> translation_unit
+%type<root> translation_unit
 %type<decl> parameter_declaration
 %type<decls> parameter_list parameter_type_list
 %type<sig> declarator direct_declarator
@@ -461,7 +461,7 @@ direct_declarator
 	| direct_declarator '[' type_qualifier_list ']'
 	| direct_declarator '[' assignment_expression ']'
 	| direct_declarator '(' parameter_type_list ')' {
-        $1->arguments = *$3;
+        $1->arguments = $3;
         $$ = $1;
     }
 	| direct_declarator '(' ')'
@@ -488,12 +488,12 @@ parameter_type_list
 
 parameter_list
 	: parameter_declaration {
-        auto *params = new vector<Declaration>;
-        params->push_back(*$1);
+        auto *params = new vector<Declaration*>;
+        params->push_back($1);
         $$ = params;
     }
 	| parameter_list ',' parameter_declaration {
-		$1->push_back(*$3);
+		$1->push_back($3);
 		$$ = $1;
 	}
 	;
@@ -503,7 +503,6 @@ parameter_declaration
         auto *decl = new Declaration();
         decl->type = $1;
         decl->name = $2->name;
-        delete $2;
         $$ = decl;
     }
 	| declaration_specifiers abstract_declarator
@@ -647,8 +646,12 @@ jump_statement
 	;
 
 translation_unit
-    : external_declaration { ast->block.push_back(*$1); }
-    | translation_unit external_declaration { ast->block.push_back(*$2); }
+    : external_declaration {
+		ast->push_back($1);
+	}
+    | translation_unit external_declaration {
+		ast->push_back($2);
+	}
 	;
 
 external_declaration
@@ -659,12 +662,7 @@ external_declaration
 function_definition
 	: declaration_specifiers declarator declaration_list compound_statement
 	| declaration_specifiers declarator compound_statement {
-        auto *fn = new FunctionDefinition();
-        fn->ret = $1;
-        fn->name = $2->name;
-        fn->arguments = $2->arguments;
-		fn->content = *$3;
-        delete $2;
+        auto *fn = new FunctionDefinition($1, $2->name, $2->arguments, $3);
         $$ = fn;
     }
 	;
@@ -677,7 +675,7 @@ declaration_list
 %%
 #include <stdio.h>
 
-void yyerror(BlockOfFunctions *ast, const char *s)
+void yyerror(vector<FunctionDefinition*> *ast, const char *s)
 {
     fflush(stdout);
     fprintf(stderr, "*** %s\n", s);

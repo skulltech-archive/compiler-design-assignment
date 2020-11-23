@@ -24,7 +24,6 @@ class Declaration {
     string name;
 
     friend ostream &operator<<(ostream &output, const Declaration &decl) {
-        vector<string> typestrs{"void", "int", "char"};
         cout << decl.type << " " << decl.name;
         return output;
     }
@@ -45,19 +44,24 @@ class FunctionDefinition {
    public:
     TypeSpecifier ret;
     string name;
-    vector<Declaration> arguments;
-    vector<BlockItem*> content;
+    vector<Declaration *> *arguments;
+    vector<BlockItem *> *content;
+    FunctionDefinition(TypeSpecifier t, string n, vector<Declaration *> *a,
+                       vector<BlockItem *> *c)
+        : ret(t), name(n), arguments(a), content(c) {}
 
     friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
-        vector<string> typestrs{"void", "int", "str"};
-        output << "function " << typestrs.at(static_cast<int>(fn.ret)) << " "
-               << fn.name << " (";
-        for (auto &it : fn.arguments) {
-            output << it << ", ";
+        output << "function " << fn.ret << " " << fn.name << " (";
+        if (fn.arguments != NULL) {
+            for (auto it : *fn.arguments) {
+                output << *it << ", ";
+            }
         }
         cout << ")";
-        for (auto it: fn.content) {
-            cout << endl << "    " << *it;
+        if (fn.content != NULL) {
+            for (auto it : *fn.content) {
+                cout << endl << string(4, ' ') << *it;
+            }
         }
         return output;
     }
@@ -66,29 +70,18 @@ class FunctionDefinition {
 class Signature {
    public:
     string name;
-    vector<Declaration> arguments;
+    vector<Declaration *> *arguments;
     friend ostream &operator<<(ostream &output, const Signature &sig) {
         cout << sig.name << "(";
-        for (auto &it : sig.arguments) {
-            output << it << ", ";
+        if (sig.arguments != NULL) {
+            for (auto it : *sig.arguments) {
+                output << *it << ", ";
+            }
         }
         cout << ")";
         return output;
     }
 };
-
-class BlockOfFunctions {
-   public:
-    vector<FunctionDefinition> block;
-
-    friend ostream &operator<<(ostream &output, const BlockOfFunctions &block) {
-        for (auto &it : block.block) {
-            output << it << endl;
-        }
-        return output;
-    }
-};
-
 
 enum class StatementType { Expr };
 class Statement : public BlockItem {
@@ -174,4 +167,38 @@ class Assignment : public Expression {
         }
         output << *expr;
     }
+};
+
+class Conditional : public Statement {
+   public:
+    Expression *condition;
+    Statement *ifstmt;
+    Statement *elsestmt;
+    Conditional(Expression *c, Statement *i, Statement *e)
+        : condition(c), ifstmt(i), elsestmt(e) {}
+    Conditional(Expression *c, Statement *i) : condition(c), ifstmt(i) {}
+    virtual void print(ostream &output) const {
+        output << "If (" << *condition << ")" << endl
+               << string(4, ' ') << *ifstmt;
+        if (elsestmt != NULL) {
+            output << endl << "Else" << endl << string(4, ' ') << *elsestmt;
+        }
+    }
+};
+
+class While : public Statement {
+   public:
+    Expression *cond;
+    Statement *stmt;
+    While(Expression *c, Statement *s) : cond(c), stmt(s) {}
+    virtual void print(ostream &output) const {
+        output << "While (" << *cond << ")" << endl << *stmt;
+    }
+};
+
+class Return : public Statement {
+   public:
+    Expression *expr;
+    Return(Expression *e) : expr(e) {}
+    virtual void print(ostream &output) const { output << "Return " << *expr; }
 };
