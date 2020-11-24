@@ -5,7 +5,7 @@
 using namespace std;
 
 ostream &operator<<(ostream &output, const TypeSpecifier &type) {
-    const string stringreps[]{"void", "int", "char"};
+    const string stringreps[]{"void", "int", "char", "..."};
     cout << stringreps[static_cast<int>(type)];
     return output;
 }

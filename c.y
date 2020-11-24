@@ -81,7 +81,7 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
 
 primary_expression
 	: IDENTIFIER {
-        auto *var = new Variable(*$1);
+        auto *var = new Identifier(*$1);
         $$ = var;
     }
 	| constant {
@@ -127,7 +127,7 @@ postfix_expression
 	| postfix_expression '[' expression ']'
 	| postfix_expression '(' ')'
 	| postfix_expression '(' argument_expression_list ')' {
-		auto *var = dynamic_cast<Variable*>($1);
+		auto *var = dynamic_cast<Identifier*>($1);
 		auto *fncall = new FunctionCall(var->name, $3);
 		$$ = fncall;
 	}
@@ -295,7 +295,7 @@ assignment_expression
 		$$ = assign;
 	}
 	| unary_expression assignment_operator assignment_expression {
-		auto *var = dynamic_cast<Variable*>($1);
+		auto *var = dynamic_cast<Identifier*>($1);
 		Assignment *assign = new Assignment(var, $3->expr);
 		$$ = assign;
 	}
@@ -485,6 +485,7 @@ direct_declarator
 	| direct_declarator '[' type_qualifier_list ']'
 	| direct_declarator '[' assignment_expression ']'
 	| direct_declarator '(' parameter_type_list ')' {
+		TRACE
         $1->arguments = $3;
         $$ = $1;
     }
@@ -506,7 +507,11 @@ type_qualifier_list
 
 
 parameter_type_list
-	: parameter_list ',' ELLIPSIS
+	: parameter_list ',' ELLIPSIS {
+		auto *elps = new Ellipsis();
+		$1->push_back(elps);
+		$$ = $1;
+	}
 	| parameter_list
 	;
 

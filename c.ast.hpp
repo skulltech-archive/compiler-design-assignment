@@ -11,10 +11,10 @@ class IntLiteral;
 class Expression;
 class Statement;
 class IntLiteral;
-class Variable;
+class Identifier;
 class BlockItem;
 
-enum class TypeSpecifier { Void, Int, Char };
+enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
 enum class BlockItemType { Stmt, Decl };
@@ -34,7 +34,18 @@ class Declaration : public BlockItem {
     bool constant;
     string name;
     Declaration(TypeSpecifier t, string n) : type(t), name(n) {}
-    virtual void print(ostream &output) const { output << type << " " << name; }
+    virtual void print(ostream &output) const {
+        output << type;
+        if (type != TypeSpecifier::Ellipsis) {
+            output << " " << name;
+        }
+    }
+};
+
+class Ellipsis : public Declaration {
+   public:
+    Ellipsis() : Declaration(TypeSpecifier::Ellipsis, "") {}
+    virtual void print(ostream &output) const { output << "..."; }
 };
 
 class Signature {
@@ -42,15 +53,18 @@ class Signature {
     string name;
     vector<Declaration *> *arguments;
     friend ostream &operator<<(ostream &output, const Signature &sig) {
-        output << sig.name << "(";
-        if (sig.arguments != NULL) {
-            for (auto it : *sig.arguments) {
+        sig.print(output);
+        return output;
+    }
+    virtual void print(ostream &output) const {
+        output << name << "(";
+        if (arguments != NULL) {
+            for (auto it : *arguments) {
                 output << *it << ", ";
             }
         }
         output << ")";
-        return output;
-    }
+    };
 };
 
 enum class StatementType { Expr };
@@ -96,10 +110,10 @@ class IntLiteral : public Literal {
     virtual void print(ostream &output) const { output << value; }
 };
 
-class Variable : public Literal {
+class Identifier : public Literal {
    public:
     string name;
-    Variable(string s) : Literal(LiteralType::Var), name(s) {}
+    Identifier(string s) : Literal(LiteralType::Var), name(s) {}
     virtual void print(ostream &output) const { output << name; }
 };
 
@@ -138,9 +152,9 @@ class UnaryExpression : public Expression {
 
 class Assignment : public Expression {
    public:
-    Variable *var;
+    Identifier *var;
     Expression *expr;
-    Assignment(Variable *v, Expression *e)
+    Assignment(Identifier *v, Expression *e)
         : Expression(ExpressionType::Assign), var(v), expr(e) {}
     Assignment(Expression *e) : Expression(ExpressionType::Assign), expr(e) {}
     virtual void print(ostream &output) const {
@@ -194,20 +208,22 @@ class FunctionDefinition {
     FunctionDefinition(TypeSpecifier t, string n, vector<Declaration *> *a,
                        CompoundStatement *c)
         : ret(t), name(n), arguments(a), content(c) {}
-
     friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
-        output << "function " << fn.ret << " " << fn.name << " (";
-        if (fn.arguments != NULL) {
-            for (auto it : *fn.arguments) {
+        fn.print(output);
+        return output;
+    }
+    virtual void print(ostream &output) const {
+        output << "function " << ret << " " << name << " (";
+        if (arguments != NULL) {
+            for (auto it : *arguments) {
                 output << *it << ", ";
             }
         }
         output << ")";
-        if (fn.content != NULL) {
-            output << *fn.content;
+        if (content != NULL) {
+            output << *content;
         }
-        return output;
-    }
+    };
 };
 
 class FunctionCall : public Expression {
