@@ -7,6 +7,7 @@ void simple_arith() {
 void simple_arith_with_arg(int d) {
   (d > d/2) || (d >= 100) && (d < 99);
 }
+
 int factorial(int n)
 {
 	if (n <= 0)

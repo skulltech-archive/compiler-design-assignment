@@ -55,6 +55,7 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
     While *whl;
     Return *ret;
     CompoundStatement *comp;
+	vector<Expression*> *exprs;
 }
 
 %type<typespec> type_specifier declaration_specifiers
@@ -66,7 +67,7 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
 %type<decls> parameter_list parameter_type_list
 %type<sig> declarator direct_declarator init_declarator init_declarator_list
 %type<lit> cast_expression unary_expression
-%type<expr> multiplicative_expression shift_expression additive_expression relational_expression equality_expression inclusive_or_expression exclusive_or_expression and_expression logical_or_expression logical_and_expression primary_expression conditional_expression expression expression_statement
+%type<expr> multiplicative_expression shift_expression additive_expression relational_expression equality_expression inclusive_or_expression exclusive_or_expression and_expression logical_or_expression logical_and_expression primary_expression conditional_expression expression expression_statement postfix_expression
 %type<assign> assignment_expression
 %type<stmt> statement
 %type<block> block_item
@@ -75,6 +76,7 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
 %type<whl> iteration_statement
 %type<ret> jump_statement
 %type<comp> compound_statement
+%type<exprs> argument_expression_list
 %%
 
 primary_expression
@@ -124,7 +126,11 @@ postfix_expression
 	: primary_expression
 	| postfix_expression '[' expression ']'
 	| postfix_expression '(' ')'
-	| postfix_expression '(' argument_expression_list ')'
+	| postfix_expression '(' argument_expression_list ')' {
+		auto *var = dynamic_cast<Variable*>($1);
+		auto *fncall = new FunctionCall(var->name, $3);
+		$$ = fncall;
+	}
 	| postfix_expression '.' IDENTIFIER
 	| postfix_expression PTR_OP IDENTIFIER
 	| postfix_expression INC_OP
@@ -134,8 +140,15 @@ postfix_expression
 	;
 
 argument_expression_list
-	: assignment_expression
-	| argument_expression_list ',' assignment_expression
+	: assignment_expression {
+		auto *args = new vector<Expression*>();
+		args->push_back($1);
+		$$ = args;
+	}
+	| argument_expression_list ',' assignment_expression {
+		$1->push_back($3);
+		$$ = $1;
+	}
 	;
 
 unary_expression

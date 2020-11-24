@@ -14,11 +14,8 @@ class IntLiteral;
 class Variable;
 class BlockItem;
 
-
 enum class TypeSpecifier { Void, Int, Char };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
-
-
 
 enum class BlockItemType { Stmt, Decl };
 class BlockItem {
@@ -31,19 +28,13 @@ class BlockItem {
     }
 };
 
-class Declaration: public BlockItem {
+class Declaration : public BlockItem {
    public:
     TypeSpecifier type;
     bool constant;
     string name;
-    Declaration(TypeSpecifier t, string n): type(t), name(n) {}
-    friend ostream &operator<<(ostream &output, const Declaration &decl) {
-        output << decl.type << " " << decl.name;
-        return output;
-    }
-    virtual void print(ostream &output) {
-        output << type << " " << name;
-    }
+    Declaration(TypeSpecifier t, string n) : type(t), name(n) {}
+    virtual void print(ostream &output) const { output << type << " " << name; }
 };
 
 class Signature {
@@ -73,20 +64,14 @@ class CompoundStatement : public Statement {
     vector<BlockItem *> *items;
     CompoundStatement() { items = new vector<BlockItem *>(); }
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
-    virtual void print(ostream &output) {
+    virtual void print(ostream &output) const {
         for (auto it : *items) {
             output << *it << endl;
         }
     }
-    friend ostream &operator<<(ostream &output, const CompoundStatement &comp) {
-        for (auto it : *comp.items) {
-            output << *it << endl;
-        }
-        return output;
-    }
 };
 
-enum class ExpressionType { Lit, Unary, Assign };
+enum class ExpressionType { Lit, Unary, Assign, FnCall };
 ostream &operator<<(ostream &output, const ExpressionType &type);
 
 class Expression : public Statement {
@@ -200,7 +185,6 @@ class Return : public Statement {
     virtual void print(ostream &output) const { output << "Return " << *expr; }
 };
 
-
 class FunctionDefinition {
    public:
     TypeSpecifier ret;
@@ -223,5 +207,20 @@ class FunctionDefinition {
             output << *fn.content;
         }
         return output;
+    }
+};
+
+class FunctionCall : public Expression {
+   public:
+    string function;
+    vector<Expression *> *arguments;
+    FunctionCall(string f, vector<Expression *> *a)
+        : Expression(ExpressionType::FnCall), function(f), arguments(a) {}
+    virtual void print(ostream &output) const {
+        output << function << "(";
+        for (auto it : *arguments) {
+            output << *it << ", ";
+        }
+        output << ")";
     }
 };
