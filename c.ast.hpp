@@ -15,6 +15,9 @@ class IntLiteral;
 class Identifier;
 class BlockItem;
 
+class Signature;
+ostream &operator<<(ostream &output, const Signature &sig);
+
 enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
@@ -31,41 +34,50 @@ class BlockItem {
     }
 };
 
-class Declaration : public BlockItem {
+class External {
+   public:
+    virtual void print(ostream &output, int indent = 0) const {};
+    friend ostream &operator<<(ostream &output, const External &ext) {
+        ext.print(output);
+        return output;
+    }
+};
+
+class Declaration : public BlockItem, public External {
    public:
     TypeSpecifier type;
     bool constant;
-    string name;
-    Declaration(TypeSpecifier t, bool c = false, string n = "")
-        : type(t), constant(c), name(n) {}
+    Signature *sig;
+    Declaration(TypeSpecifier t) : type(t) {}
+    Declaration(TypeSpecifier t, bool c, Signature *s)
+        : type(t), constant(c), sig(s) {}
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << type;
         if (type != TypeSpecifier::Ellipsis) {
             if (constant) {
                 output << " const";
             }
-            output << " " << name;
+            output << " " << *sig;
         }
     }
-};
-
-class Ellipsis : public Declaration {
-   public:
-    Ellipsis() : Declaration(TypeSpecifier::Ellipsis) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << "...";
+    friend ostream &operator<<(ostream &output, const Declaration &decl) {
+        decl.print(output);
+        return output;
     }
 };
 
 class Signature {
    public:
+    int pointers;
     string name;
     vector<Declaration *> *arguments;
+    Signature(string n) : pointers(0), name(n) {}
     friend ostream &operator<<(ostream &output, const Signature &sig) {
         sig.print(output);
         return output;
     }
     virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << name << "(";
         if (arguments != NULL) {
             for (auto it : *arguments) {
                 output << *it;
@@ -76,6 +88,14 @@ class Signature {
         }
         output << ")";
     };
+};
+
+class Ellipsis : public Declaration {
+   public:
+    Ellipsis() : Declaration(TypeSpecifier::Ellipsis) {}
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << "...";
+    }
 };
 
 enum class StatementType { Expr };
@@ -90,12 +110,12 @@ class CompoundStatement : public Statement {
     CompoundStatement() { items = new vector<BlockItem *>(); }
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
     virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << "{" << endl;
         for (auto it : *items) {
             it->print(output, indent + 4);
-            if (it != items->back()) {
-                output << endl;
-            }
+            output << endl;
         }
+        output << string(indent, ' ') << "}";
     }
 };
 
@@ -232,7 +252,7 @@ class Return : public Statement {
     }
 };
 
-class FunctionDefinition {
+class FunctionDefinition : public External {
    public:
     TypeSpecifier ret;
     string name;
@@ -241,10 +261,6 @@ class FunctionDefinition {
     FunctionDefinition(TypeSpecifier t, string n, vector<Declaration *> *a,
                        CompoundStatement *c)
         : ret(t), name(n), arguments(a), content(c) {}
-    friend ostream &operator<<(ostream &output, const FunctionDefinition &fn) {
-        fn.print(output);
-        return output;
-    }
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << "function " << ret << " " << name
                << " (";
@@ -253,11 +269,8 @@ class FunctionDefinition {
                 output << *it << ", ";
             }
         }
-        output << ")";
-        if (content != NULL) {
-            output << endl;
-            content->print(output, indent + 4);
-        }
+        output << ")" << endl;
+        content->print(output, indent + 4);
     };
 };
 

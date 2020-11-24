@@ -9,10 +9,10 @@ using namespace std;
 
 // stuff from flex that bison needs to know about:
 extern "C" int yylex();
-int yyparse(vector<FunctionDefinition*> *ast);
+int yyparse(vector<External*> *ast);
 extern "C" FILE *yyin;
  
-void yyerror(vector<FunctionDefinition*> *ast, const char *s);
+void yyerror(vector<External*> *ast, const char *s);
 
 #define TRACE printf("reduce at line %d\n", __LINE__);
 %}
@@ -34,14 +34,14 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
 %token	ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
 
 %start translation_unit
-%parse-param {vector<FunctionDefinition*> *ast}
+%parse-param {vector<External*> *ast}
 
 %union {
     string *str;
     int num;
     TypeSpecifier typespec;
     FunctionDefinition *func;
-    vector<FunctionDefinition*> *root;
+    vector<External*> *root;
     Declaration *decl;
     vector<Declaration*> *decls;
     Signature *sig;
@@ -57,13 +57,15 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
     CompoundStatement *comp;
 	vector<Expression*> *exprs;
 	DeclSpecifier *declspec;
+	External *ext;
 }
 
 %type<typespec> type_specifier
 %type<declspec> declaration_specifiers
 %type<str> IDENTIFIER STRING_LITERAL string
-%type<num> I_CONSTANT constant
-%type<func> external_declaration function_definition
+%type<num> I_CONSTANT constant pointer
+%type<ext> external_declaration
+%type<func> function_definition
 %type<root> translation_unit
 %type<decl> parameter_declaration declaration
 %type<decls> parameter_list parameter_type_list
@@ -332,7 +334,7 @@ constant_expression
 declaration
 	: declaration_specifiers ';'
 	| declaration_specifiers init_declarator_list ';' {
-        auto *decl = new Declaration($1->first, $1->second, $2->name);
+        auto *decl = new Declaration($1->first, $1->second, $2);
         $$ = decl;
     }
 	| static_assert_declaration
@@ -478,14 +480,16 @@ alignment_specifier
 	;
 
 declarator
-	: pointer direct_declarator
+	: pointer direct_declarator  {
+		$2->pointers = $1;
+		$$ = $2;
+	}
 	| direct_declarator
 	;
 
 direct_declarator
 	: IDENTIFIER {
-        auto *sig = new Signature();
-        sig->name = *$1;
+        auto *sig = new Signature(*$1);
         $$ = sig;
     }
 	| '(' declarator ')'
@@ -509,8 +513,8 @@ direct_declarator
 pointer
 	: '*' type_qualifier_list pointer
 	| '*' type_qualifier_list
-	| '*' pointer
-	| '*'
+	| '*' pointer  { $$ = $2 + 1; }
+	| '*'  { $$ = 1; }
 	;
 
 type_qualifier_list
@@ -542,7 +546,7 @@ parameter_list
 
 parameter_declaration
 	: declaration_specifiers declarator {
-        auto *decl = new Declaration($1->first, $1->second, $2->name);
+        auto *decl = new Declaration($1->first, $1->second, $2);
         $$ = decl;
     }
 	| declaration_specifiers abstract_declarator
@@ -733,7 +737,7 @@ declaration_list
 %%
 #include <stdio.h>
 
-void yyerror(vector<FunctionDefinition*> *ast, const char *s)
+void yyerror(vector<External*> *ast, const char *s)
 {
     fflush(stdout);
     fprintf(stderr, "*** %s\n", s);

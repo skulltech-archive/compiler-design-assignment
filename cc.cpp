@@ -6,7 +6,7 @@
 #include "c.tab.hpp"
 
 extern "C" int yylex();
-void yyerror(vector<FunctionDefinition*> *ast, const char *s);
+void yyerror(vector<External*> *ast, const char *s);
 extern "C" FILE *yyin;
 
 static void usage() {
@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
   char const *filename = argv[1];
   yyin = fopen(filename, "r");
   assert(yyin);
-  vector<FunctionDefinition*> ast;
+  vector<External*> ast;
   int ret = yyparse(&ast);
   cout << "retv = " << ret << endl;
   for (const auto &it: ast) {
