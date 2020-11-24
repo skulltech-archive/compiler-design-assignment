@@ -21,7 +21,7 @@ enum class BlockItemType { Stmt, Decl };
 class BlockItem {
    public:
     BlockItemType btype;
-    virtual void print(ostream &output) const {};
+    virtual void print(ostream &output, int indent = 0) const {};
     friend ostream &operator<<(ostream &output, const BlockItem &block) {
         block.print(output);
         return output;
@@ -34,8 +34,8 @@ class Declaration : public BlockItem {
     bool constant;
     string name;
     Declaration(TypeSpecifier t, string n) : type(t), name(n) {}
-    virtual void print(ostream &output) const {
-        output << type;
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << type;
         if (type != TypeSpecifier::Ellipsis) {
             output << " " << name;
         }
@@ -45,7 +45,9 @@ class Declaration : public BlockItem {
 class Ellipsis : public Declaration {
    public:
     Ellipsis() : Declaration(TypeSpecifier::Ellipsis, "") {}
-    virtual void print(ostream &output) const { output << "..."; }
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << "...";
+    }
 };
 
 class Signature {
@@ -56,11 +58,13 @@ class Signature {
         sig.print(output);
         return output;
     }
-    virtual void print(ostream &output) const {
-        output << name << "(";
+    virtual void print(ostream &output, int indent = 0) const {
         if (arguments != NULL) {
             for (auto it : *arguments) {
-                output << *it << ", ";
+                output << *it;
+                if (it != arguments->back()) {
+                    output << ", ";
+                }
             }
         }
         output << ")";
@@ -78,9 +82,12 @@ class CompoundStatement : public Statement {
     vector<BlockItem *> *items;
     CompoundStatement() { items = new vector<BlockItem *>(); }
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
-    virtual void print(ostream &output) const {
+    virtual void print(ostream &output, int indent = 0) const {
         for (auto it : *items) {
-            output << *it << endl;
+            it->print(output, indent + 4);
+            if (it != items->back()) {
+                output << endl;
+            }
         }
     }
 };
@@ -107,14 +114,18 @@ class IntLiteral : public Literal {
    public:
     int value;
     IntLiteral(int i) : Literal(LiteralType::Int), value(i) {}
-    virtual void print(ostream &output) const { output << value; }
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << value;
+    }
 };
 
 class Identifier : public Literal {
    public:
     string name;
     Identifier(string s) : Literal(LiteralType::Var), name(s) {}
-    virtual void print(ostream &output) const { output << name; }
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << name;
+    }
 };
 
 enum class UnaryOperator {
@@ -145,8 +156,9 @@ class UnaryExpression : public Expression {
     Expression *right;
     UnaryExpression(UnaryOperator o, Expression *l, Expression *r)
         : Expression(ExpressionType::Unary), op(o), left(l), right(r) {}
-    virtual void print(ostream &output) const {
-        output << op << "(" << *left << ", " << *right << ")";
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << op << "(" << *left << ", " << *right
+               << ")";
     }
 };
 
@@ -157,7 +169,8 @@ class Assignment : public Expression {
     Assignment(Identifier *v, Expression *e)
         : Expression(ExpressionType::Assign), var(v), expr(e) {}
     Assignment(Expression *e) : Expression(ExpressionType::Assign), expr(e) {}
-    virtual void print(ostream &output) const {
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ');
         if (var != NULL) {
             output << *var << " = ";
         }
@@ -173,11 +186,12 @@ class Conditional : public Statement {
     Conditional(Expression *c, Statement *i, Statement *e)
         : condition(c), ifstmt(i), elsestmt(e) {}
     Conditional(Expression *c, Statement *i) : condition(c), ifstmt(i) {}
-    virtual void print(ostream &output) const {
-        output << "If (" << *condition << ")" << endl
-               << string(4, ' ') << *ifstmt;
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << "If (" << *condition << ")" << endl;
+        ifstmt->print(output, indent + 4);
         if (elsestmt != NULL) {
-            output << endl << "Else" << endl << string(4, ' ') << *elsestmt;
+            output << endl << string(indent, ' ') << "Else" << endl;
+            elsestmt->print(output, indent + 4);
         }
     }
 };
@@ -187,8 +201,9 @@ class While : public Statement {
     Expression *cond;
     Statement *stmt;
     While(Expression *c, Statement *s) : cond(c), stmt(s) {}
-    virtual void print(ostream &output) const {
-        output << "While (" << *cond << ") : " << *stmt;
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << "While (" << *cond << ")" << endl;
+        stmt->print(output, indent + 4);
     }
 };
 
@@ -196,7 +211,9 @@ class Return : public Statement {
    public:
     Expression *expr;
     Return(Expression *e) : expr(e) {}
-    virtual void print(ostream &output) const { output << "Return " << *expr; }
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << "Return " << *expr;
+    }
 };
 
 class FunctionDefinition {
@@ -212,8 +229,9 @@ class FunctionDefinition {
         fn.print(output);
         return output;
     }
-    virtual void print(ostream &output) const {
-        output << "function " << ret << " " << name << " (";
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << "function " << ret << " " << name
+               << " (";
         if (arguments != NULL) {
             for (auto it : *arguments) {
                 output << *it << ", ";
@@ -221,7 +239,8 @@ class FunctionDefinition {
         }
         output << ")";
         if (content != NULL) {
-            output << *content;
+            output << endl;
+            content->print(output, indent + 4);
         }
     };
 };
@@ -232,10 +251,13 @@ class FunctionCall : public Expression {
     vector<Expression *> *arguments;
     FunctionCall(string f, vector<Expression *> *a)
         : Expression(ExpressionType::FnCall), function(f), arguments(a) {}
-    virtual void print(ostream &output) const {
-        output << function << "(";
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << function << "(";
         for (auto it : *arguments) {
-            output << *it << ", ";
+            output << *it;
+            if (it != arguments->back()) {
+                output << ", ";
+            }
         }
         output << ")";
     }
