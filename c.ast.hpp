@@ -14,6 +14,7 @@ class Statement;
 class IntLiteral;
 class Identifier;
 class BlockItem;
+class External;
 
 class Signature;
 ostream &operator<<(ostream &output, const Signature &sig);
@@ -22,6 +23,9 @@ enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
 using DeclSpecifier = pair<TypeSpecifier, bool>;
+using AST = vector<External *>;
+ostream &operator<<(ostream &output, const AST &type);
+
 
 enum class BlockItemType { Stmt, Decl };
 class BlockItem {

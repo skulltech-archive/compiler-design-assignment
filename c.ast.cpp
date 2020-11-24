@@ -25,3 +25,10 @@ ostream &operator<<(ostream &output, const UnaryOperator &type) {
     cout << stringreps[static_cast<int>(type)];
     return output;
 }
+
+ostream &operator<<(ostream &output, const AST &ast) {
+    for (const auto &it : ast) {
+        output << *it << endl;
+    }
+    return output;
+}

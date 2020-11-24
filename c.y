@@ -9,10 +9,10 @@ using namespace std;
 
 // stuff from flex that bison needs to know about:
 extern "C" int yylex();
-int yyparse(vector<External*> *ast);
+int yyparse(AST *ast);
 extern "C" FILE *yyin;
  
-void yyerror(vector<External*> *ast, const char *s);
+void yyerror(AST *ast, const char *s);
 
 #define TRACE printf("reduce at line %d\n", __LINE__);
 %}
@@ -34,14 +34,14 @@ void yyerror(vector<External*> *ast, const char *s);
 %token	ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
 
 %start translation_unit
-%parse-param {vector<External*> *ast}
+%parse-param {AST *ast}
 
 %union {
     string *str;
     int num;
     TypeSpecifier typespec;
     FunctionDefinition *func;
-    vector<External*> *root;
+    AST *ast;
     Declaration *decl;
     vector<Declaration*> *decls;
     Signature *sig;
@@ -66,7 +66,7 @@ void yyerror(vector<External*> *ast, const char *s);
 %type<num> I_CONSTANT constant pointer
 %type<ext> external_declaration
 %type<func> function_definition
-%type<root> translation_unit
+%type<ast> translation_unit
 %type<decl> parameter_declaration declaration
 %type<decls> parameter_list parameter_type_list
 %type<sig> declarator direct_declarator init_declarator init_declarator_list
@@ -737,7 +737,7 @@ declaration_list
 %%
 #include <stdio.h>
 
-void yyerror(vector<External*> *ast, const char *s)
+void yyerror(AST *ast, const char *s)
 {
     fflush(stdout);
     fprintf(stderr, "*** %s\n", s);
