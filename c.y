@@ -709,10 +709,10 @@ jump_statement
 
 translation_unit
     : external_declaration {
-		ast->push_back($1);
+		ast->items->push_back($1);
 	}
     | translation_unit external_declaration {
-		ast->push_back($2);
+		ast->items->push_back($2);
 	}
 	;
 

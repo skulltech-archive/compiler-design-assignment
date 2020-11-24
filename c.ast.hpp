@@ -23,28 +23,36 @@ enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
 using DeclSpecifier = pair<TypeSpecifier, bool>;
-using AST = vector<External *>;
-ostream &operator<<(ostream &output, const AST &type);
+// using AST = vector<External *>;
+// ostream &operator<<(ostream &output, const AST &type);
 
-
-enum class BlockItemType { Stmt, Decl };
-class BlockItem {
+class Node {
    public:
-    BlockItemType btype;
     virtual void print(ostream &output, int indent = 0) const {};
-    friend ostream &operator<<(ostream &output, const BlockItem &block) {
-        block.print(output);
+    friend ostream &operator<<(ostream &output, const Node &node) {
+        node.print(output);
         return output;
     }
 };
 
-class External {
+class External : public Node {};
+
+class AST : public Node {
    public:
-    virtual void print(ostream &output, int indent = 0) const {};
-    friend ostream &operator<<(ostream &output, const External &ext) {
-        ext.print(output);
+    vector<External *> *items;
+    AST() { items = new vector<External *>; }
+    friend ostream &operator<<(ostream &output, const AST &ast) {
+        for (auto it : *ast.items) {
+            output << *it << endl;
+        }
         return output;
     }
+};
+
+enum class BlockItemType { Stmt, Decl };
+class BlockItem : public Node {
+   public:
+    BlockItemType btype;
 };
 
 class Declaration : public BlockItem, public External {
