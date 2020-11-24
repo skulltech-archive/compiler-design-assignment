@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 using namespace std;
@@ -16,6 +17,8 @@ class BlockItem;
 
 enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
+
+using DeclSpecifier = pair<TypeSpecifier, bool>;
 
 enum class BlockItemType { Stmt, Decl };
 class BlockItem {
@@ -33,10 +36,14 @@ class Declaration : public BlockItem {
     TypeSpecifier type;
     bool constant;
     string name;
-    Declaration(TypeSpecifier t, string n) : type(t), name(n) {}
+    Declaration(TypeSpecifier t, bool c = false, string n = "")
+        : type(t), constant(c), name(n) {}
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << type;
         if (type != TypeSpecifier::Ellipsis) {
+            if (constant) {
+                output << " const";
+            }
             output << " " << name;
         }
     }
@@ -44,7 +51,7 @@ class Declaration : public BlockItem {
 
 class Ellipsis : public Declaration {
    public:
-    Ellipsis() : Declaration(TypeSpecifier::Ellipsis, "") {}
+    Ellipsis() : Declaration(TypeSpecifier::Ellipsis) {}
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << "...";
     }
@@ -101,7 +108,7 @@ class Expression : public Statement {
     Expression(ExpressionType type) : etype(type) {}
 };
 
-enum class LiteralType { Int, Var };
+enum class LiteralType { Int, Var, Str };
 ostream &operator<<(ostream &output, const LiteralType &type);
 
 class Literal : public Expression {
@@ -116,6 +123,15 @@ class IntLiteral : public Literal {
     IntLiteral(int i) : Literal(LiteralType::Int), value(i) {}
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << value;
+    }
+};
+
+class StrLiteral : public Literal {
+   public:
+    string str;
+    StrLiteral(string s) : Literal(LiteralType::Str), str(s) {}
+    virtual void print(ostream &output, int indent = 0) const {
+        output << string(indent, ' ') << str;
     }
 };
 

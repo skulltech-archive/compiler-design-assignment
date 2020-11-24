@@ -56,10 +56,12 @@ void yyerror(vector<FunctionDefinition*> *ast, const char *s);
     Return *ret;
     CompoundStatement *comp;
 	vector<Expression*> *exprs;
+	DeclSpecifier *declspec;
 }
 
-%type<typespec> type_specifier declaration_specifiers
-%type<str> IDENTIFIER
+%type<typespec> type_specifier
+%type<declspec> declaration_specifiers
+%type<str> IDENTIFIER STRING_LITERAL string
 %type<num> I_CONSTANT constant
 %type<func> external_declaration function_definition
 %type<root> translation_unit
@@ -88,7 +90,10 @@ primary_expression
         auto *num = new IntLiteral($1);
         $$ = num;
     }
-	| string
+	| string {
+		auto *str = new StrLiteral(*$1);
+		$$ = str;
+	}
 	| '(' expression ')' { $$ = $2; }
 	| generic_selection
 	;
@@ -327,23 +332,32 @@ constant_expression
 declaration
 	: declaration_specifiers ';'
 	| declaration_specifiers init_declarator_list ';' {
-        auto *decl = new Declaration($1, $2->name);
+        auto *decl = new Declaration($1->first, $1->second, $2->name);
         $$ = decl;
     }
 	| static_assert_declaration
 	;
 
 declaration_specifiers
-	: storage_class_specifier declaration_specifiers
-	| storage_class_specifier
-	| type_specifier declaration_specifiers
-	| type_specifier
-	| type_qualifier declaration_specifiers
-	| type_qualifier
-	| function_specifier declaration_specifiers
-	| function_specifier
-	| alignment_specifier declaration_specifiers
-	| alignment_specifier
+	: storage_class_specifier declaration_specifiers {TRACE}
+	| storage_class_specifier {TRACE}
+	| type_specifier declaration_specifiers {
+		$2->first = $1;
+		$$ = $2;
+	}
+	| type_specifier {
+		auto *declspec = new DeclSpecifier($1, false);
+		$$ = declspec;
+	}
+	| type_qualifier declaration_specifiers {TRACE}
+	| type_qualifier {
+		auto *declspec = new DeclSpecifier(TypeSpecifier::Ellipsis, true);
+		$$ = declspec;
+	}
+	| function_specifier declaration_specifiers {TRACE}
+	| function_specifier {TRACE}
+	| alignment_specifier declaration_specifiers {TRACE}
+	| alignment_specifier {TRACE}
 	;
 
 init_declarator_list
@@ -485,7 +499,6 @@ direct_declarator
 	| direct_declarator '[' type_qualifier_list ']'
 	| direct_declarator '[' assignment_expression ']'
 	| direct_declarator '(' parameter_type_list ')' {
-		TRACE
         $1->arguments = $3;
         $$ = $1;
     }
@@ -529,7 +542,7 @@ parameter_list
 
 parameter_declaration
 	: declaration_specifiers declarator {
-        auto *decl = new Declaration($1, $2->name);
+        auto *decl = new Declaration($1->first, $1->second, $2->name);
         $$ = decl;
     }
 	| declaration_specifiers abstract_declarator
@@ -707,7 +720,7 @@ external_declaration
 function_definition
 	: declaration_specifiers declarator declaration_list compound_statement
 	| declaration_specifiers declarator compound_statement {
-        auto *fn = new FunctionDefinition($1, $2->name, $2->arguments, $3);
+        auto *fn = new FunctionDefinition($1->first, $2->name, $2->arguments, $3);
         $$ = fn;
     }
 	;
