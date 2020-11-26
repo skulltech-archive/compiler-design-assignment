@@ -20,6 +20,12 @@ ostream &operator<<(ostream &output, const UnaryOperator &type) {
     return output;
 }
 
+ostream &operator<<(ostream &output, const ReferentType &type) {
+    const string stringreps[]{"function", "var"};
+    cout << stringreps[static_cast<int>(type)];
+    return output;
+}
+
 void AST::print(ostream &output, int indent) const {
     for (auto it : *items) {
         output << *it << endl;
@@ -52,19 +58,12 @@ ostream &operator<<(ostream &output, const Declaration &decl) {
 
 void Declaration::traverse(SymbolTable &st) {
     Referent *ref;
-    switch (type) {
-        case TypeSpecifier::Int:
-            ref = new Referent(ReferentType::Int, this);
-            break;
-        case TypeSpecifier::Char:
-            ref = new Referent(ReferentType::Char, this);
-            break;
-        default:
-            break;
+    if (sig->arguments == NULL) {
+        ref = new Referent(ReferentType::Var, type, sig->pointers, this);
+    } else {
+        ref = new Referent(ReferentType::Func, type, sig->pointers, this);
     }
-    if (ref != NULL) {
-        st.addSymbol(sig->name, ref);
-    }
+    st.addSymbol(sig->name, ref);
 };
 
 void Signature::print(ostream &output, int indent) const {
@@ -89,6 +88,12 @@ void CompoundStatement::print(ostream &output, int indent) const {
     output << string(indent, ' ') << "}";
 }
 
+void CompoundStatement::traverse(SymbolTable &st) {
+    for (auto it : *items) {
+        it->traverse(st);
+    }
+}
+
 void UnaryExpression::print(ostream &output, int indent) const {
     output << string(indent, ' ') << op << "(" << *left << ", " << *right
            << ")";
@@ -106,6 +111,13 @@ void While::print(ostream &output, int indent) const {
     output << string(indent, ' ') << "While (" << *cond << ")" << endl;
     stmt->print(output, indent + 4);
 }
+
+void While::traverse(SymbolTable &st) {
+    st.enterScope();
+    this->stmt->traverse(st);
+    st.exitScope();
+}
+
 void Return::print(ostream &output, int indent) const {
     output << string(indent, ' ') << "Return " << *expr;
 }
@@ -119,6 +131,19 @@ void Conditional::print(ostream &output, int indent) const {
     }
 }
 
+void Conditional::traverse(SymbolTable &st) {
+    if (this->ifstmt != NULL) {
+        st.enterScope();
+        this->ifstmt->traverse(st);
+        st.exitScope();
+    }
+    if (this->elsestmt != NULL) {
+        st.enterScope();
+        this->elsestmt->traverse(st);
+        st.exitScope();
+    }
+}
+
 void FunctionDefinition::print(ostream &output, int indent) const {
     output << string(indent, ' ') << "function " << ret << " " << name << " (";
     if (arguments != NULL) {
@@ -129,14 +154,18 @@ void FunctionDefinition::print(ostream &output, int indent) const {
     output << ")" << endl;
     content->print(output, indent + 4);
 };
+
 void FunctionDefinition::traverse(SymbolTable &st) {
-    auto *ref = new Referent(ReferentType::Func, this);
+    auto *ref = new Referent(ReferentType::Func, this->ret, 0, this);
     st.addSymbol(this->name, ref);
     st.enterScope();
-    for (auto it : *arguments) {
-        it->traverse(st);
+    if (arguments != NULL) {
+        for (auto it : *arguments) {
+            it->traverse(st);
+        }
     }
     content->traverse(st);
+    cout << st << endl;
     st.exitScope();
 }
 

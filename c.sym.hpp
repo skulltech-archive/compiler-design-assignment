@@ -7,18 +7,19 @@ using namespace std;
 class Node;
 ostream& operator<<(ostream& output, const Node& node);
 
-enum ReferentType { Func, Int, Char };
+enum ReferentType { Func, Var };
+ostream& operator<<(ostream& output, const ReferentType& type);
+
+enum class TypeSpecifier;
+ostream& operator<<(ostream& output, const TypeSpecifier& type);
 
 struct Referent {
-    ReferentType type;
+    ReferentType rtype;
+    TypeSpecifier type;
+    int pointers;
     Node* node;
-    Referent(ReferentType t, Node* n) : type(t), node(n) {}
-    Referent(ReferentType t) : type(t) {}
-    friend ostream& operator<<(ostream& output, const Referent& ref) {
-        const string reftypes[]{"function", "int", "char"};
-        cout << reftypes[static_cast<int>(ref.type)] << " : " << *ref.node;
-        return output;
-    }
+    Referent(ReferentType rt, TypeSpecifier t, int p, Node* n)
+        : rtype(rt), type(t), pointers(p), node(n) {}
 };
 
 // source https://stackoverflow.com/a/13428630/5837426
@@ -48,13 +49,16 @@ class SymbolTable {
     bool checkScope(string sym) { return table.top().count(sym) != 0; }
     void exitScope() { table.pop(); }
     friend ostream& operator<<(ostream& output, const SymbolTable& st) {
+        output << string(20, '-') << endl;
         for (int i = 0; i < st.table.size(); ++i) {
-            output << string(10, '-') << endl;
-            for (const auto& entry : st.table.c[i]) {
-                output << "Symbol: " << entry.first
-                       << ", Type: " << entry.second->type << endl;
+            for (const auto& it : st.table.c[i]) {
+                output << it.first << " : " << it.second->type
+                       << string(it.second->pointers, '*') << " "
+                       << it.second->rtype << endl;
             }
+            output << string(5, '.') << endl;
         }
+        output << string(20, '-') << endl;
         return output;
     }
 };

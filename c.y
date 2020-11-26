@@ -341,8 +341,8 @@ declaration
 	;
 
 declaration_specifiers
-	: storage_class_specifier declaration_specifiers {TRACE}
-	| storage_class_specifier {TRACE}
+	: storage_class_specifier declaration_specifiers
+	| storage_class_specifier
 	| type_specifier declaration_specifiers {
 		$2->first = $1;
 		$$ = $2;
@@ -351,15 +351,15 @@ declaration_specifiers
 		auto *declspec = new DeclSpecifier($1, false);
 		$$ = declspec;
 	}
-	| type_qualifier declaration_specifiers {TRACE}
+	| type_qualifier declaration_specifiers
 	| type_qualifier {
 		auto *declspec = new DeclSpecifier(TypeSpecifier::Ellipsis, true);
 		$$ = declspec;
 	}
-	| function_specifier declaration_specifiers {TRACE}
-	| function_specifier {TRACE}
-	| alignment_specifier declaration_specifiers {TRACE}
-	| alignment_specifier {TRACE}
+	| function_specifier declaration_specifiers
+	| function_specifier
+	| alignment_specifier declaration_specifiers
+	| alignment_specifier
 	;
 
 init_declarator_list

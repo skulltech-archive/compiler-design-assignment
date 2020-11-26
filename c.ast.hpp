@@ -75,6 +75,7 @@ class CompoundStatement : public Statement {
     CompoundStatement() { items = new vector<BlockItem *>(); }
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
     virtual void print(ostream &output, int indent = 0) const;
+    virtual void traverse(SymbolTable &st);
 };
 
 class Expression : public Statement {};
@@ -157,6 +158,7 @@ class Conditional : public Statement {
         : condition(c), ifstmt(i), elsestmt(e) {}
     Conditional(Expression *c, Statement *i) : condition(c), ifstmt(i) {}
     virtual void print(ostream &output, int indent = 0) const;
+    virtual void traverse(SymbolTable &st);
 };
 
 class While : public Statement {
@@ -165,6 +167,7 @@ class While : public Statement {
     Statement *stmt;
     While(Expression *c, Statement *s) : cond(c), stmt(s) {}
     virtual void print(ostream &output, int indent = 0) const;
+    virtual void traverse(SymbolTable &st);
 };
 
 class Return : public Statement {

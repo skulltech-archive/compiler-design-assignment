@@ -15,7 +15,7 @@ static void usage() { printf("Usage: cc <prog.c>\n"); }
 
 void validateScope(AST &ast) {
     SymbolTable st;
-    // ast.traverse(st);
+    ast.traverse(st);
 };
 
 int main(int argc, char **argv) {
@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     AST ast;
     int ret = yyparse(&ast);
     cout << "retv = " << ret << endl;
-    cout << ast;
+    // cout << ast;
     // validateScope(ast);
     exit(0);
 }
