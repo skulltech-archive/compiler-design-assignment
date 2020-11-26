@@ -9,7 +9,6 @@
 using namespace std;
 
 class Signature;
-ostream &operator<<(ostream &output, const Signature &sig);
 
 enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
@@ -26,29 +25,18 @@ class Node {
     virtual void traverse(SymbolTable &st){};
 };
 
-class External : public Node {};
+class External : virtual public Node {};
 
 class AST : public Node {
    public:
     vector<External *> *items;
     AST() { items = new vector<External *>; }
-    virtual void print(ostream &output, int indent = 0) const {
-        for (auto it : *items) {
-            output << *it << endl;
-        }
-    }
-    virtual void traverse(SymbolTable &st) {
-        st.enterScope();
-        for (auto it : *items) {
-            it->traverse(st);
-            cout << st << endl;
-        }
-        st.exitScope();
-    };
+    virtual void print(ostream &output, int indent = 0) const;
+    virtual void traverse(SymbolTable &st);
 };
 
 enum class BlockItemType { Stmt, Decl };
-class BlockItem : public Node {
+class BlockItem : virtual public Node {
    public:
     BlockItemType btype;
 };
@@ -61,59 +49,18 @@ class Declaration : public BlockItem, public External {
     Declaration(TypeSpecifier t) : type(t) {}
     Declaration(TypeSpecifier t, bool c, Signature *s)
         : type(t), constant(c), sig(s) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << type;
-        if (type != TypeSpecifier::Ellipsis) {
-            if (constant) {
-                output << " const";
-            }
-            output << " " << *sig;
-        }
-    }
-    friend ostream &operator<<(ostream &output, const Declaration &decl) {
-        decl.print(output);
-        return output;
-    }
-    // virtual void traverse(SymbolTable &st) {
-    //     Referent *ref;
-    //     switch (type) {
-    //         case TypeSpecifier::Int:
-    //             ref = new Referent(ReferentType::Int, this);
-    //             break;
-    //         case TypeSpecifier::Char:
-    //             ref = new Referent(ReferentType::Char, this);
-    //             break;
-    //         default:
-    //             break;
-    //     }
-    //     if (ref != NULL) {
-    //         st.addSymbol(sig->name, ref);
-    //     }
-    // };
+    virtual void print(ostream &output, int indent = 0) const;
+    friend ostream &operator<<(ostream &output, const Declaration &decl);
+    virtual void traverse(SymbolTable &st);
 };
 
-class Signature {
+class Signature : public Node {
    public:
     int pointers;
     string name;
     vector<Declaration *> *arguments;
     Signature(string n) : pointers(0), name(n) {}
-    friend ostream &operator<<(ostream &output, const Signature &sig) {
-        sig.print(output);
-        return output;
-    }
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << name << "(";
-        if (arguments != NULL) {
-            for (auto it : *arguments) {
-                output << *it;
-                if (it != arguments->back()) {
-                    output << ", ";
-                }
-            }
-        }
-        output << ")";
-    };
+    virtual void print(ostream &output, int indent = 0) const;
 };
 
 class Ellipsis : public Declaration {
@@ -135,14 +82,7 @@ class CompoundStatement : public Statement {
     vector<BlockItem *> *items;
     CompoundStatement() { items = new vector<BlockItem *>(); }
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << "{" << endl;
-        for (auto it : *items) {
-            it->print(output, indent + 4);
-            output << endl;
-        }
-        output << string(indent, ' ') << "}";
-    }
+    virtual void print(ostream &output, int indent = 0) const;
 };
 
 enum class ExpressionType { Lit, Unary, Assign, FnCall };
@@ -218,10 +158,7 @@ class UnaryExpression : public Expression {
     Expression *right;
     UnaryExpression(UnaryOperator o, Expression *l, Expression *r)
         : Expression(ExpressionType::Unary), op(o), left(l), right(r) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << op << "(" << *left << ", " << *right
-               << ")";
-    }
+    virtual void print(ostream &output, int indent = 0) const;
 };
 
 class Assignment : public Expression {
@@ -231,13 +168,7 @@ class Assignment : public Expression {
     Assignment(Identifier *v, Expression *e)
         : Expression(ExpressionType::Assign), var(v), expr(e) {}
     Assignment(Expression *e) : Expression(ExpressionType::Assign), expr(e) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ');
-        if (var != NULL) {
-            output << *var << " = ";
-        }
-        output << *expr;
-    }
+    virtual void print(ostream &output, int indent = 0) const;
 };
 
 class Conditional : public Statement {
@@ -248,14 +179,7 @@ class Conditional : public Statement {
     Conditional(Expression *c, Statement *i, Statement *e)
         : condition(c), ifstmt(i), elsestmt(e) {}
     Conditional(Expression *c, Statement *i) : condition(c), ifstmt(i) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << "If (" << *condition << ")" << endl;
-        ifstmt->print(output, indent + 4);
-        if (elsestmt != NULL) {
-            output << endl << string(indent, ' ') << "Else" << endl;
-            elsestmt->print(output, indent + 4);
-        }
-    }
+    virtual void print(ostream &output, int indent = 0) const;
 };
 
 class While : public Statement {
@@ -263,19 +187,14 @@ class While : public Statement {
     Expression *cond;
     Statement *stmt;
     While(Expression *c, Statement *s) : cond(c), stmt(s) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << "While (" << *cond << ")" << endl;
-        stmt->print(output, indent + 4);
-    }
+    virtual void print(ostream &output, int indent = 0) const;
 };
 
 class Return : public Statement {
    public:
     Expression *expr;
     Return(Expression *e) : expr(e) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << "Return " << *expr;
-    }
+    virtual void print(ostream &output, int indent = 0) const;
 };
 
 class FunctionDefinition : public External {
@@ -287,27 +206,8 @@ class FunctionDefinition : public External {
     FunctionDefinition(TypeSpecifier t, string n, vector<Declaration *> *a,
                        CompoundStatement *c)
         : ret(t), name(n), arguments(a), content(c) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << "function " << ret << " " << name
-               << " (";
-        if (arguments != NULL) {
-            for (auto it : *arguments) {
-                output << *it << ", ";
-            }
-        }
-        output << ")" << endl;
-        content->print(output, indent + 4);
-    };
-    // virtual void traverse(SymbolTable &st) {
-    //     auto *ref = new Referent(ReferentType::Func, this);
-    //     st.addSymbol(this->name, ref);
-    //     st.enterScope();
-    //     for (auto it : *arguments) {
-    //         it->traverse(st);
-    //     }
-    //     content->traverse(st);
-    //     st.exitScope();
-    // }
+    virtual void print(ostream &output, int indent = 0) const;
+    virtual void traverse(SymbolTable &st);
 };
 
 class FunctionCall : public Expression {
@@ -316,14 +216,5 @@ class FunctionCall : public Expression {
     vector<Expression *> *arguments;
     FunctionCall(string f, vector<Expression *> *a)
         : Expression(ExpressionType::FnCall), function(f), arguments(a) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << function << "(";
-        for (auto it : *arguments) {
-            output << *it;
-            if (it != arguments->back()) {
-                output << ", ";
-            }
-        }
-        output << ")";
-    }
+    virtual void print(ostream &output, int indent = 0) const;
 };
