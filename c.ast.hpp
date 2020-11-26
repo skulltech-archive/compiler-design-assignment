@@ -35,11 +35,7 @@ class AST : public Node {
     virtual void traverse(SymbolTable &st);
 };
 
-enum class BlockItemType { Stmt, Decl };
-class BlockItem : virtual public Node {
-   public:
-    BlockItemType btype;
-};
+class BlockItem : virtual public Node {};
 
 class Declaration : public BlockItem, public External {
    public:
@@ -71,11 +67,7 @@ class Ellipsis : public Declaration {
     }
 };
 
-enum class StatementType { Expr };
-class Statement : public BlockItem {
-   public:
-    StatementType stype;
-};
+class Statement : public BlockItem {};
 
 class CompoundStatement : public Statement {
    public:
@@ -85,28 +77,14 @@ class CompoundStatement : public Statement {
     virtual void print(ostream &output, int indent = 0) const;
 };
 
-enum class ExpressionType { Lit, Unary, Assign, FnCall };
-ostream &operator<<(ostream &output, const ExpressionType &type);
+class Expression : public Statement {};
 
-class Expression : public Statement {
-   public:
-    ExpressionType etype;
-    Expression(ExpressionType type) : etype(type) {}
-};
-
-enum class LiteralType { Int, Var, Str };
-ostream &operator<<(ostream &output, const LiteralType &type);
-
-class Literal : public Expression {
-   public:
-    LiteralType ltype;
-    Literal(LiteralType type) : Expression(ExpressionType::Lit), ltype(type){};
-};
+class Literal : public Expression {};
 
 class IntLiteral : public Literal {
    public:
     int value;
-    IntLiteral(int i) : Literal(LiteralType::Int), value(i) {}
+    IntLiteral(int i) : value(i) {}
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << value;
     }
@@ -115,7 +93,7 @@ class IntLiteral : public Literal {
 class StrLiteral : public Literal {
    public:
     string str;
-    StrLiteral(string s) : Literal(LiteralType::Str), str(s) {}
+    StrLiteral(string s) : str(s) {}
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << str;
     }
@@ -124,7 +102,7 @@ class StrLiteral : public Literal {
 class Identifier : public Literal {
    public:
     string name;
-    Identifier(string s) : Literal(LiteralType::Var), name(s) {}
+    Identifier(string s) : name(s) {}
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << name;
     }
@@ -157,7 +135,7 @@ class UnaryExpression : public Expression {
     Expression *left;
     Expression *right;
     UnaryExpression(UnaryOperator o, Expression *l, Expression *r)
-        : Expression(ExpressionType::Unary), op(o), left(l), right(r) {}
+        : op(o), left(l), right(r) {}
     virtual void print(ostream &output, int indent = 0) const;
 };
 
@@ -165,9 +143,8 @@ class Assignment : public Expression {
    public:
     Identifier *var;
     Expression *expr;
-    Assignment(Identifier *v, Expression *e)
-        : Expression(ExpressionType::Assign), var(v), expr(e) {}
-    Assignment(Expression *e) : Expression(ExpressionType::Assign), expr(e) {}
+    Assignment(Identifier *v, Expression *e) : var(v), expr(e) {}
+    Assignment(Expression *e) : expr(e) {}
     virtual void print(ostream &output, int indent = 0) const;
 };
 
@@ -215,6 +192,6 @@ class FunctionCall : public Expression {
     string function;
     vector<Expression *> *arguments;
     FunctionCall(string f, vector<Expression *> *a)
-        : Expression(ExpressionType::FnCall), function(f), arguments(a) {}
+        : function(f), arguments(a) {}
     virtual void print(ostream &output, int indent = 0) const;
 };

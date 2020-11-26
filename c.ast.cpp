@@ -10,12 +10,6 @@ ostream &operator<<(ostream &output, const TypeSpecifier &type) {
     return output;
 }
 
-ostream &operator<<(ostream &output, const ExpressionType &type) {
-    const string stringreps[]{"literal", "unary"};
-    cout << stringreps[static_cast<int>(type)];
-    return output;
-}
-
 ostream &operator<<(ostream &output, const UnaryOperator &type) {
     const string stringreps[]{
         "Multiply", "Divide",   "Plus",       "Minus",      "Left",
