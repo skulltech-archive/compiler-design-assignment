@@ -4,17 +4,9 @@
 #include <tuple>
 #include <vector>
 
-using namespace std;
+#include "c.sym.hpp"
 
-class FunctionDefinition;
-class Declaration;
-class IntLiteral;
-class Expression;
-class Statement;
-class IntLiteral;
-class Identifier;
-class BlockItem;
-class External;
+using namespace std;
 
 class Signature;
 ostream &operator<<(ostream &output, const Signature &sig);
@@ -23,8 +15,6 @@ enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
 using DeclSpecifier = pair<TypeSpecifier, bool>;
-// using AST = vector<External *>;
-// ostream &operator<<(ostream &output, const AST &type);
 
 class Node {
    public:
@@ -33,6 +23,7 @@ class Node {
         node.print(output);
         return output;
     }
+    virtual void traverse(SymbolTable &st){};
 };
 
 class External : public Node {};
@@ -41,12 +32,19 @@ class AST : public Node {
    public:
     vector<External *> *items;
     AST() { items = new vector<External *>; }
-    friend ostream &operator<<(ostream &output, const AST &ast) {
-        for (auto it : *ast.items) {
+    virtual void print(ostream &output, int indent = 0) const {
+        for (auto it : *items) {
             output << *it << endl;
         }
-        return output;
     }
+    virtual void traverse(SymbolTable &st) {
+        st.enterScope();
+        for (auto it : *items) {
+            it->traverse(st);
+            cout << st << endl;
+        }
+        st.exitScope();
+    };
 };
 
 enum class BlockItemType { Stmt, Decl };
@@ -76,6 +74,22 @@ class Declaration : public BlockItem, public External {
         decl.print(output);
         return output;
     }
+    // virtual void traverse(SymbolTable &st) {
+    //     Referent *ref;
+    //     switch (type) {
+    //         case TypeSpecifier::Int:
+    //             ref = new Referent(ReferentType::Int, this);
+    //             break;
+    //         case TypeSpecifier::Char:
+    //             ref = new Referent(ReferentType::Char, this);
+    //             break;
+    //         default:
+    //             break;
+    //     }
+    //     if (ref != NULL) {
+    //         st.addSymbol(sig->name, ref);
+    //     }
+    // };
 };
 
 class Signature {
@@ -284,6 +298,16 @@ class FunctionDefinition : public External {
         output << ")" << endl;
         content->print(output, indent + 4);
     };
+    // virtual void traverse(SymbolTable &st) {
+    //     auto *ref = new Referent(ReferentType::Func, this);
+    //     st.addSymbol(this->name, ref);
+    //     st.enterScope();
+    //     for (auto it : *arguments) {
+    //         it->traverse(st);
+    //     }
+    //     content->traverse(st);
+    //     st.exitScope();
+    // }
 };
 
 class FunctionCall : public Expression {

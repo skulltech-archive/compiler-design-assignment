@@ -4,7 +4,6 @@
 
 #include <iostream>
 
-#include "c.analysis.cpp"
 #include "c.ast.hpp"
 #include "c.tab.hpp"
 
@@ -13,6 +12,11 @@ void yyerror(AST *ast, const char *s);
 extern "C" FILE *yyin;
 
 static void usage() { printf("Usage: cc <prog.c>\n"); }
+
+void validateScope(AST &ast) {
+    SymbolTable st;
+    // ast.traverse(st);
+};
 
 int main(int argc, char **argv) {
     if (argc != 2) {
