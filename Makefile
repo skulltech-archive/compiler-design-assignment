@@ -1,5 +1,5 @@
 cc: cc.cpp c.tab.cpp c.lex.cpp
-	g++ c.tab.cpp c.lex.cpp c.ast.cpp cc.cpp -lm -ll -lfl -Wall -o $@
+	g++ c.tab.cpp c.lex.cpp c.ast.cpp cc.cpp `llvm-config --cxxflags --ldflags --libs` -lm -ll -lfl -Wall -o $@
 
 c.tab.cpp c.tab.hpp: c.y
 	bison -t -v -o c.tab.cpp -d c.y

@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     AST ast;
     int ret = yyparse(&ast);
     cout << "retv = " << ret << endl;
-    // cout << ast;
-    // validateScope(ast);
+    cout << ast;
+    validateScope(ast);
     exit(0);
 }

@@ -1,19 +1,41 @@
 #pragma once
 #include <iostream>
+#include <map>
+#include <stack>
 #include <string>
 #include <tuple>
 #include <vector>
 
-#include "c.sym.hpp"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
 
 using namespace std;
+
+static llvm::LLVMContext TheContext;
+static llvm::IRBuilder<> Builder(TheContext);
+static unique_ptr<llvm::Module> TheModule;
+static map<std::string, llvm::Value *> NamedValues;
 
 class Signature;
 
 enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
+enum ReferentType { Func, Var };
+ostream &operator<<(ostream &output, const ReferentType &type);
+
 using DeclSpecifier = pair<TypeSpecifier, bool>;
+
+class SymbolTable;
 
 class Node {
    public:
@@ -25,7 +47,10 @@ class Node {
     virtual void traverse(SymbolTable &st){};
 };
 
-class External : virtual public Node {};
+class External : virtual public Node {
+   public:
+    virtual llvm::Function *generateCode(){};
+};
 
 class AST : public Node {
    public:
@@ -50,6 +75,10 @@ class Declaration : public BlockItem, public External {
     virtual void traverse(SymbolTable &st);
 };
 
+class FunctionDeclaration : public External {
+
+};
+
 class Signature : public Node {
    public:
     int pointers;
@@ -67,7 +96,10 @@ class Ellipsis : public Declaration {
     }
 };
 
-class Statement : public BlockItem {};
+class Statement : public BlockItem {
+   public:
+    virtual llvm::Value *generateCode(){};
+};
 
 class CompoundStatement : public Statement {
    public:
@@ -86,30 +118,26 @@ class IntLiteral : public Literal {
    public:
     int value;
     IntLiteral(int i) : value(i) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << value;
-    }
+    virtual void print(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode();
 };
 
 class StrLiteral : public Literal {
    public:
     string str;
     StrLiteral(string s) : str(s) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << str;
-    }
+    virtual void print(ostream &output, int indent = 0) const;
 };
 
 class Identifier : public Literal {
    public:
     string name;
     Identifier(string s) : name(s) {}
-    virtual void print(ostream &output, int indent = 0) const {
-        output << string(indent, ' ') << name;
-    }
+    virtual void print(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode();
 };
 
-enum class UnaryOperator {
+enum class BinaryOperator {
     Multiply,
     Divide,
     Plus,
@@ -128,16 +156,17 @@ enum class UnaryOperator {
     And,
     Or
 };
-ostream &operator<<(ostream &output, const UnaryOperator &type);
+ostream &operator<<(ostream &output, const BinaryOperator &type);
 
-class UnaryExpression : public Expression {
+class BinaryExpression : public Expression {
    public:
-    UnaryOperator op;
+    BinaryOperator op;
     Expression *left;
     Expression *right;
-    UnaryExpression(UnaryOperator o, Expression *l, Expression *r)
+    BinaryExpression(BinaryOperator o, Expression *l, Expression *r)
         : op(o), left(l), right(r) {}
     virtual void print(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode();
 };
 
 class Assignment : public Expression {
@@ -188,6 +217,7 @@ class FunctionDefinition : public External {
         : ret(t), name(n), arguments(a), content(c) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
+    virtual llvm::Function *generateCode();
 };
 
 class FunctionCall : public Expression {
@@ -197,4 +227,54 @@ class FunctionCall : public Expression {
     FunctionCall(string f, vector<Expression *> *a)
         : function(f), arguments(a) {}
     virtual void print(ostream &output, int indent = 0) const;
+};
+
+struct Referent {
+    ReferentType rtype;
+    TypeSpecifier type;
+    int pointers;
+    Node *node;
+    Referent(ReferentType rt, TypeSpecifier t, int p, Node *n)
+        : rtype(rt), type(t), pointers(p), node(n) {}
+};
+
+// source https://stackoverflow.com/a/13428630/5837426
+class StackOfScopes : public stack<map<string, Referent *>> {
+   public:
+    using stack<map<string, Referent *>>::c;  // expose the container
+};
+
+class SymbolTable {
+   public:
+    StackOfScopes table;
+    void enterScope() {
+        auto *m = new map<string, Referent *>();
+        table.push(*m);
+    }
+    Referent *findSymbol(string sym) {
+        for (int i = 0; i < table.size(); ++i) {
+            if (table.c[i].count(sym) != 0) {
+                return table.c[i][sym];
+            }
+        }
+        return NULL;
+    }
+    void addSymbol(string sym, Referent *ref) {
+        table.top().insert({sym, ref});
+    }
+    bool checkScope(string sym) { return table.top().count(sym) != 0; }
+    void exitScope() { table.pop(); }
+    friend ostream &operator<<(ostream &output, const SymbolTable &st) {
+        output << string(20, '-') << endl;
+        for (int i = 0; i < st.table.size(); ++i) {
+            for (const auto &it : st.table.c[i]) {
+                output << it.first << " : " << it.second->type
+                       << string(it.second->pointers, '*') << " "
+                       << it.second->rtype << endl;
+            }
+            output << string(5, '.') << endl;
+        }
+        output << string(20, '-') << endl;
+        return output;
+    }
 };

@@ -70,7 +70,7 @@ void yyerror(AST *ast, const char *s);
 %type<decl> parameter_declaration declaration
 %type<decls> parameter_list parameter_type_list
 %type<sig> declarator direct_declarator init_declarator init_declarator_list
-%type<lit> cast_expression unary_expression
+%type<lit> cast_expression Binary_expression
 %type<expr> multiplicative_expression shift_expression additive_expression relational_expression equality_expression inclusive_or_expression exclusive_or_expression and_expression logical_or_expression logical_and_expression primary_expression conditional_expression expression expression_statement postfix_expression
 %type<assign> assignment_expression
 %type<stmt> statement
@@ -158,17 +158,17 @@ argument_expression_list
 	}
 	;
 
-unary_expression
+Binary_expression
 	: postfix_expression
-	| INC_OP unary_expression
-	| DEC_OP unary_expression
-	| unary_operator cast_expression
-	| SIZEOF unary_expression
+	| INC_OP Binary_expression
+	| DEC_OP Binary_expression
+	| Binary_operator cast_expression
+	| SIZEOF Binary_expression
 	| SIZEOF '(' type_name ')'
 	| ALIGNOF '(' type_name ')'
 	;
 
-unary_operator
+Binary_operator
 	: '&'
 	| '*'
 	| '+'
@@ -178,18 +178,18 @@ unary_operator
 	;
 
 cast_expression
-	: unary_expression
+	: Binary_expression
 	| '(' type_name ')' cast_expression
 	;
 
 multiplicative_expression
 	: cast_expression
 	| multiplicative_expression '*' cast_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Multiply, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Multiply, $1, $3);
         $$ = expr;
     }
 	| multiplicative_expression '/' cast_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Divide, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Divide, $1, $3);
         $$ = expr;
     }
 	| multiplicative_expression '%' cast_expression
@@ -198,11 +198,11 @@ multiplicative_expression
 additive_expression 
 	: multiplicative_expression
 	| additive_expression '+' multiplicative_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Plus, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Plus, $1, $3);
         $$ = expr;
     }
 	| additive_expression '-' multiplicative_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Minus, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Minus, $1, $3);
         $$ = expr;
     }
 	;
@@ -210,11 +210,11 @@ additive_expression
 shift_expression
 	: additive_expression
 	| shift_expression LEFT_OP additive_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Left, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Left, $1, $3);
         $$ = expr;
     }
 	| shift_expression RIGHT_OP additive_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Right, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Right, $1, $3);
         $$ = expr;
     }
 	;
@@ -222,19 +222,19 @@ shift_expression
 relational_expression
 	: shift_expression
 	| relational_expression '<' shift_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Less, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Less, $1, $3);
         $$ = expr;
     }
 	| relational_expression '>' shift_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Greater, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Greater, $1, $3);
         $$ = expr;
     }
 	| relational_expression LE_OP shift_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::LessEqual, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::LessEqual, $1, $3);
         $$ = expr;
     }
 	| relational_expression GE_OP shift_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::GreaterEqual, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::GreaterEqual, $1, $3);
         $$ = expr;
     }
 	;
@@ -242,11 +242,11 @@ relational_expression
 equality_expression
 	: relational_expression
 	| equality_expression EQ_OP relational_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Equal, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Equal, $1, $3);
         $$ = expr;
     }
 	| equality_expression NE_OP relational_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::NotEqual, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::NotEqual, $1, $3);
         $$ = expr;
     }
 	;
@@ -254,7 +254,7 @@ equality_expression
 and_expression
 	: equality_expression
 	| and_expression '&' equality_expression {
-        auto *expr = new UnaryExpression(UnaryOperator::BitwiseAnd, $1, $3);
+        auto *expr = new BinaryExpression(BinaryOperator::BitwiseAnd, $1, $3);
         $$ = expr;
     }
 	;
@@ -262,7 +262,7 @@ and_expression
 exclusive_or_expression
 	: and_expression
 	| exclusive_or_expression '^' and_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::BitwiseXor, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::BitwiseXor, $1, $3);
         $$ = expr;
     }
 	;
@@ -270,7 +270,7 @@ exclusive_or_expression
 inclusive_or_expression
 	: exclusive_or_expression
 	| inclusive_or_expression '|' exclusive_or_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::BitwiseOr, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::BitwiseOr, $1, $3);
         $$ = expr;
     }
 	;
@@ -278,7 +278,7 @@ inclusive_or_expression
 logical_and_expression
 	: inclusive_or_expression
 	| logical_and_expression AND_OP inclusive_or_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::And, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::And, $1, $3);
         $$ = expr;
     }
 	;
@@ -286,7 +286,7 @@ logical_and_expression
 logical_or_expression
 	: logical_and_expression
 	| logical_or_expression OR_OP logical_and_expression {
-		auto *expr = new UnaryExpression(UnaryOperator::Or, $1, $3);
+		auto *expr = new BinaryExpression(BinaryOperator::Or, $1, $3);
         $$ = expr;
     }
 	;
@@ -301,7 +301,7 @@ assignment_expression
 		Assignment *assign = new Assignment($1);
 		$$ = assign;
 	}
-	| unary_expression assignment_operator assignment_expression {
+	| Binary_expression assignment_operator assignment_expression {
 		auto *var = dynamic_cast<Identifier*>($1);
 		Assignment *assign = new Assignment(var, $3->expr);
 		$$ = assign;
@@ -335,6 +335,7 @@ declaration
 	: declaration_specifiers ';'
 	| declaration_specifiers init_declarator_list ';' {
         auto *decl = new Declaration($1->first, $1->second, $2);
+		TRACE
         $$ = decl;
     }
 	| static_assert_declaration
@@ -547,6 +548,7 @@ parameter_list
 parameter_declaration
 	: declaration_specifiers declarator {
         auto *decl = new Declaration($1->first, $1->second, $2);
+		TRACE
         $$ = decl;
     }
 	| declaration_specifiers abstract_declarator
