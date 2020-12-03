@@ -1,0 +1,15 @@
+Node    External    FunctionDeclaration
+                    FunctionDefinition
+        AST
+        BlockItem   Declaration
+                    Statement       CompoundStatement
+                                    Expression          Literal             IntLiteral
+                                                                            StrLiteral
+                                                                            Identifier
+                                                        BinaryExpression
+                                                        Assignment
+                                                        FunctionCall
+                                    Conditional
+                                    While
+                                    Return
+        Signature

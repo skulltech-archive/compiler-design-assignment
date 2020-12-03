@@ -20,21 +20,22 @@
 
 using namespace std;
 
-static llvm::LLVMContext TheContext;
-static llvm::IRBuilder<> Builder(TheContext);
-static unique_ptr<llvm::Module> TheModule;
-static map<std::string, llvm::Value *> NamedValues;
-
-class Signature;
-
 enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
+
+llvm::Value *logError(string error);
+void initLlvm();
+void emitCode();
+llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func, const string var,
+                                         llvm::Type *type);
+llvm::Type *generateType(TypeSpecifier type);
 
 enum ReferentType { Func, Var };
 ostream &operator<<(ostream &output, const ReferentType &type);
 
 using DeclSpecifier = pair<TypeSpecifier, bool>;
 
+class Signature;
 class SymbolTable;
 
 class Node {
@@ -45,9 +46,10 @@ class Node {
         return output;
     }
     virtual void traverse(SymbolTable &st){};
+    virtual llvm::Value *generateCode(){};
 };
 
-class External : virtual public Node {
+class External : public Node {
    public:
     virtual llvm::Function *generateCode(){};
 };
@@ -58,11 +60,15 @@ class AST : public Node {
     AST() { items = new vector<External *>; }
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
+    virtual llvm::Value *generateCode();
 };
 
-class BlockItem : virtual public Node {};
+class BlockItem : public Node {
+   public:
+    virtual llvm::Value *generateCode(){};
+};
 
-class Declaration : public BlockItem, public External {
+class Declaration : public BlockItem {
    public:
     TypeSpecifier type;
     bool constant;
@@ -71,12 +77,7 @@ class Declaration : public BlockItem, public External {
     Declaration(TypeSpecifier t, bool c, Signature *s)
         : type(t), constant(c), sig(s) {}
     virtual void print(ostream &output, int indent = 0) const;
-    friend ostream &operator<<(ostream &output, const Declaration &decl);
     virtual void traverse(SymbolTable &st);
-};
-
-class FunctionDeclaration : public External {
-
 };
 
 class Signature : public Node {
@@ -108,9 +109,13 @@ class CompoundStatement : public Statement {
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
+    virtual llvm::Value *generateCode();
 };
 
-class Expression : public Statement {};
+class Expression : public Statement {
+   public:
+    virtual llvm::Value *generateCode(){};
+};
 
 class Literal : public Expression {};
 
@@ -176,6 +181,7 @@ class Assignment : public Expression {
     Assignment(Identifier *v, Expression *e) : var(v), expr(e) {}
     Assignment(Expression *e) : expr(e) {}
     virtual void print(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode();
 };
 
 class Conditional : public Statement {
@@ -188,6 +194,7 @@ class Conditional : public Statement {
     Conditional(Expression *c, Statement *i) : condition(c), ifstmt(i) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
+    virtual llvm::Value *generateCode();
 };
 
 class While : public Statement {
@@ -204,17 +211,28 @@ class Return : public Statement {
     Expression *expr;
     Return(Expression *e) : expr(e) {}
     virtual void print(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode();
 };
 
-class FunctionDefinition : public External {
+class FunctionDeclaration : public External {
    public:
     TypeSpecifier ret;
     string name;
     vector<Declaration *> *arguments;
+    FunctionDeclaration(TypeSpecifier t, string n, vector<Declaration *> *a)
+        : ret(t), name(n), arguments(a) {}
+    virtual void print(ostream &output, int indent = 0) const;
+    virtual void traverse(SymbolTable &st);
+    virtual llvm::Function *generateCode();
+};
+
+class FunctionDefinition : public External {
+   public:
+    FunctionDeclaration *decl;
     CompoundStatement *content;
-    FunctionDefinition(TypeSpecifier t, string n, vector<Declaration *> *a,
-                       CompoundStatement *c)
-        : ret(t), name(n), arguments(a), content(c) {}
+    bool hasReturn;
+    FunctionDefinition(FunctionDeclaration *d, CompoundStatement *c)
+        : decl(d), content(c) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
     virtual llvm::Function *generateCode();
@@ -227,6 +245,7 @@ class FunctionCall : public Expression {
     FunctionCall(string f, vector<Expression *> *a)
         : function(f), arguments(a) {}
     virtual void print(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode();
 };
 
 struct Referent {

@@ -70,7 +70,7 @@ void yyerror(AST *ast, const char *s);
 %type<decl> parameter_declaration declaration
 %type<decls> parameter_list parameter_type_list
 %type<sig> declarator direct_declarator init_declarator init_declarator_list
-%type<lit> cast_expression Binary_expression
+%type<lit> cast_expression unary_expression
 %type<expr> multiplicative_expression shift_expression additive_expression relational_expression equality_expression inclusive_or_expression exclusive_or_expression and_expression logical_or_expression logical_and_expression primary_expression conditional_expression expression expression_statement postfix_expression
 %type<assign> assignment_expression
 %type<stmt> statement
@@ -158,17 +158,17 @@ argument_expression_list
 	}
 	;
 
-Binary_expression
+unary_expression
 	: postfix_expression
-	| INC_OP Binary_expression
-	| DEC_OP Binary_expression
-	| Binary_operator cast_expression
-	| SIZEOF Binary_expression
+	| INC_OP unary_expression
+	| DEC_OP unary_expression
+	| unary_operator cast_expression
+	| SIZEOF unary_expression
 	| SIZEOF '(' type_name ')'
 	| ALIGNOF '(' type_name ')'
 	;
 
-Binary_operator
+unary_operator
 	: '&'
 	| '*'
 	| '+'
@@ -178,7 +178,7 @@ Binary_operator
 	;
 
 cast_expression
-	: Binary_expression
+	: unary_expression
 	| '(' type_name ')' cast_expression
 	;
 
@@ -301,7 +301,7 @@ assignment_expression
 		Assignment *assign = new Assignment($1);
 		$$ = assign;
 	}
-	| Binary_expression assignment_operator assignment_expression {
+	| unary_expression assignment_operator assignment_expression {
 		auto *var = dynamic_cast<Identifier*>($1);
 		Assignment *assign = new Assignment(var, $3->expr);
 		$$ = assign;
@@ -335,7 +335,6 @@ declaration
 	: declaration_specifiers ';'
 	| declaration_specifiers init_declarator_list ';' {
         auto *decl = new Declaration($1->first, $1->second, $2);
-		TRACE
         $$ = decl;
     }
 	| static_assert_declaration
@@ -548,7 +547,6 @@ parameter_list
 parameter_declaration
 	: declaration_specifiers declarator {
         auto *decl = new Declaration($1->first, $1->second, $2);
-		TRACE
         $$ = decl;
     }
 	| declaration_specifiers abstract_declarator
@@ -720,13 +718,17 @@ translation_unit
 
 external_declaration
 	: function_definition
-	| declaration
+	| declaration {
+		auto *fn = new FunctionDeclaration($1->type, $1->sig->name, $1->sig->arguments);
+		$$ = fn;
+	}
 	;
 
 function_definition
 	: declaration_specifiers declarator declaration_list compound_statement
 	| declaration_specifiers declarator compound_statement {
-        auto *fn = new FunctionDefinition($1->first, $2->name, $2->arguments, $3);
+		auto *decl = new FunctionDeclaration($1->first, $2->name, $2->arguments);
+        auto *fn = new FunctionDefinition(decl, $3);
         $$ = fn;
     }
 	;

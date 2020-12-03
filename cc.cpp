@@ -7,6 +7,7 @@
 #include "c.ast.hpp"
 #include "c.tab.hpp"
 
+
 extern "C" int yylex();
 void yyerror(AST *ast, const char *s);
 extern "C" FILE *yyin;
@@ -31,5 +32,8 @@ int main(int argc, char **argv) {
     cout << "retv = " << ret << endl;
     cout << ast;
     validateScope(ast);
+    initLlvm();
+    ast.generateCode();
+    emitCode();
     exit(0);
 }
