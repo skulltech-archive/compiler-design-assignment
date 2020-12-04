@@ -50,6 +50,7 @@ llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context) {
 }
 
 void emitCode(CodeKit &kit) {
+    llvm::verifyModule(kit.module, &llvm::outs());
     kit.module.print(llvm::outs(), nullptr);
 
     auto irFile = "output.bc";
@@ -97,7 +98,7 @@ llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func, const string var,
 }
 
 llvm::Value *logError(string error) {
-    cout << "error: " << error;
+    cout << "error: " << error << endl;
     return nullptr;
 }
 
@@ -109,7 +110,7 @@ void AST::print(ostream &output, int indent) const {
     }
 }
 
-void AST::traverse(SymbolTable &st) {
+void AST::traverse(SymbolTable<Referent> &st) {
     st.enterScope();
     for (auto it : *items) {
         it->traverse(st);
@@ -119,9 +120,11 @@ void AST::traverse(SymbolTable &st) {
 };
 
 llvm::Value *AST::generateCode(CodeKit &kit) {
+    kit.symbolTable.enterScope();
     for (auto it : *items) {
         auto *func = it->generateCode(kit);
     }
+    kit.symbolTable.exitScope();
 }
 
 // Declaration
@@ -136,10 +139,20 @@ void Declaration::print(ostream &output, int indent) const {
     }
 }
 
-void Declaration::traverse(SymbolTable &st) {
+void Declaration::traverse(SymbolTable<Referent> &st) {
     auto *ref = new Referent(ReferentType::Var, type, sig->pointers, this);
     st.addSymbol(sig->name, ref);
 };
+
+llvm::Value *Declaration::generateCode(CodeKit &kit) {
+    llvm::Function *func = kit.builder.GetInsertBlock()->getParent();
+    llvm::Type *t = generateType(type, kit.context);
+    auto *val = llvm::Constant::getNullValue(t);
+    auto *alloca = createEntryBlockAlloca(func, sig->name, t);
+    kit.builder.CreateStore(val, alloca);
+    kit.symbolTable.addSymbol(sig->name, alloca);
+    return val;
+}
 
 // Signature
 
@@ -175,9 +188,9 @@ void Identifier::print(ostream &output, int indent) const {
 }
 
 llvm::Value *Identifier::generateCode(CodeKit &kit) {
-    llvm::Value *v = kit.namedValues[name];
+    llvm::Value *v = kit.symbolTable.findSymbol(name);
     if (v == nullptr) {
-        logError("variable undeclared");
+        return logError("variable undeclared");
     }
     return kit.builder.CreateLoad(v, name.c_str());
 };
@@ -193,7 +206,7 @@ void CompoundStatement::print(ostream &output, int indent) const {
     output << string(indent, ' ') << "}";
 }
 
-void CompoundStatement::traverse(SymbolTable &st) {
+void CompoundStatement::traverse(SymbolTable<Referent> &st) {
     for (auto it : *items) {
         it->traverse(st);
     }
@@ -287,7 +300,7 @@ llvm::Value *Assignment::generateCode(CodeKit &kit) {
     if (var == nullptr) {
         return val;
     }
-    llvm::Value *variable = kit.namedValues[var->name];
+    llvm::Value *variable = kit.symbolTable.findSymbol(var->name);
     if (variable == nullptr) {
         return logError("variable undeclared");
     }
@@ -302,10 +315,37 @@ void While::print(ostream &output, int indent) const {
     stmt->print(output, indent + 4);
 }
 
-void While::traverse(SymbolTable &st) {
+void While::traverse(SymbolTable<Referent> &st) {
     st.enterScope();
     this->stmt->traverse(st);
     st.exitScope();
+}
+
+llvm::Value *While::generateCode(CodeKit &kit) {
+    llvm::Function *func = kit.builder.GetInsertBlock()->getParent();
+    auto *checkBlock =
+        llvm::BasicBlock::Create(kit.context, "whilecheck", func);
+    auto *loopBlock = llvm::BasicBlock::Create(kit.context, "whileloop");
+    auto *mergeBlock = llvm::BasicBlock::Create(kit.context, "whilemerge");
+
+    kit.builder.CreateBr(checkBlock);
+    kit.builder.SetInsertPoint(checkBlock);
+    llvm::Value *condVal = cond->generateCode(kit);
+    kit.builder.CreateCondBr(condVal, loopBlock, mergeBlock);
+
+    func->getBasicBlockList().push_back(loopBlock);
+    kit.builder.SetInsertPoint(loopBlock);
+    kit.symbolTable.enterScope();
+    stmt->generateCode(kit);
+    kit.symbolTable.exitScope();
+    loopBlock = kit.builder.GetInsertBlock();
+    if (loopBlock->getTerminator() == nullptr) {
+        kit.builder.CreateBr(checkBlock);
+    }
+
+    func->getBasicBlockList().push_back(mergeBlock);
+    kit.builder.SetInsertPoint(mergeBlock);
+    return nullptr;
 }
 
 // Return
@@ -330,7 +370,7 @@ void Conditional::print(ostream &output, int indent) const {
     }
 }
 
-void Conditional::traverse(SymbolTable &st) {
+void Conditional::traverse(SymbolTable<Referent> &st) {
     if (this->ifstmt != nullptr) {
         st.enterScope();
         this->ifstmt->traverse(st);
@@ -355,24 +395,31 @@ llvm::Value *Conditional::generateCode(CodeKit &kit) {
 
     kit.builder.CreateCondBr(cond, ifBlock, elseBlock);
     kit.builder.SetInsertPoint(ifBlock);
-    auto *ifVal = ifstmt->generateCode(kit);
-    if (ifVal == nullptr) {
-        return nullptr;
+    if (ifstmt != nullptr) {
+        kit.symbolTable.enterScope();
+        ifstmt->generateCode(kit);
+        kit.symbolTable.exitScope();
     }
-    kit.builder.CreateBr(mergeBlock);
     ifBlock = kit.builder.GetInsertBlock();
+    if (ifBlock->getTerminator() == nullptr) {
+        kit.builder.CreateBr(mergeBlock);
+    }
 
     func->getBasicBlockList().push_back(elseBlock);
     kit.builder.SetInsertPoint(elseBlock);
-    auto *elseVal = elsestmt->generateCode(kit);
-    if (elseVal == nullptr) {
-        return nullptr;
+    if (elsestmt != nullptr) {
+        kit.symbolTable.enterScope();
+        elsestmt->generateCode(kit);
+        kit.symbolTable.exitScope();
     }
-    kit.builder.CreateBr(mergeBlock);
     elseBlock = kit.builder.GetInsertBlock();
+    if (elseBlock->getTerminator() == nullptr) {
+        kit.builder.CreateBr(mergeBlock);
+    }
 
     func->getBasicBlockList().push_back(mergeBlock);
     kit.builder.SetInsertPoint(mergeBlock);
+    return nullptr;
 }
 
 // FunctionDeclaration
@@ -387,7 +434,7 @@ void FunctionDeclaration::print(ostream &output, int indent) const {
     output << ")";
 };
 
-void FunctionDeclaration::traverse(SymbolTable &st) {
+void FunctionDeclaration::traverse(SymbolTable<Referent> &st) {
     auto *ref = new Referent(ReferentType::Func, this->ret, 0, this);
     st.addSymbol(this->name, ref);
 };
@@ -399,8 +446,8 @@ llvm::Function *FunctionDeclaration::generateCode(CodeKit &kit) {
             argTypes.push_back(generateType(it->type, kit.context));
         }
     }
-    llvm::FunctionType *funcType =
-        llvm::FunctionType::get(generateType(ret, kit.context), argTypes, false);
+    llvm::FunctionType *funcType = llvm::FunctionType::get(
+        generateType(ret, kit.context), argTypes, false);
     llvm::Function *func = llvm::Function::Create(
         funcType, llvm::Function::ExternalLinkage, name, &kit.module);
     int index = 0;
@@ -417,7 +464,7 @@ void FunctionDefinition::print(ostream &output, int indent) const {
     content->print(output, indent + 4);
 };
 
-void FunctionDefinition::traverse(SymbolTable &st) {
+void FunctionDefinition::traverse(SymbolTable<Referent> &st) {
     decl->traverse(st);
     st.enterScope();
     if (decl->arguments != nullptr) {
@@ -431,7 +478,7 @@ void FunctionDefinition::traverse(SymbolTable &st) {
 }
 
 llvm::Function *FunctionDefinition::generateCode(CodeKit &kit) {
-    auto *func = kit.module.getFunction("main");
+    auto *func = kit.module.getFunction(decl->name);
     if (func == nullptr) {
         func = decl->generateCode(kit);
     }
@@ -442,20 +489,21 @@ llvm::Function *FunctionDefinition::generateCode(CodeKit &kit) {
     llvm::BasicBlock *entryBlock =
         llvm::BasicBlock::Create(kit.context, "entry", func);
     kit.builder.SetInsertPoint(entryBlock);
-    kit.namedValues.clear();
+    kit.symbolTable.enterScope();
 
     for (auto &arg : func->args()) {
         auto *alloca =
             createEntryBlockAlloca(func, arg.getName(), arg.getType());
         kit.builder.CreateStore(&arg, alloca);
-        kit.namedValues[arg.getName()] = alloca;
+        kit.symbolTable.addSymbol(arg.getName(), alloca);
     }
 
     content->generateCode(kit);
     if (func->getReturnType()->isVoidTy()) {
         kit.builder.CreateRetVoid();
     }
-    llvm::verifyFunction(*func);
+    llvm::verifyFunction(*func, &llvm::outs());
+    kit.symbolTable.exitScope();
     return func;
 };
 

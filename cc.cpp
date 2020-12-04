@@ -15,7 +15,7 @@ extern "C" FILE *yyin;
 static void usage() { printf("Usage: cc <prog.c>\n"); }
 
 void validateScope(AST &ast) {
-    SymbolTable st;
+    SymbolTable<Referent> st;
     ast.traverse(st);
 };
 
@@ -36,8 +36,8 @@ int main(int argc, char **argv) {
     AST ast;
     int ret = yyparse(&ast);
     cout << "retv = " << ret << endl;
-    cout << ast;
-    validateScope(ast);
+    // cout << ast;
+    // validateScope(ast);
     generateCode(ast);
     exit(0);
 }

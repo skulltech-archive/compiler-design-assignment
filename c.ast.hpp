@@ -29,7 +29,11 @@ ostream &operator<<(ostream &output, const ReferentType &type);
 using DeclSpecifier = pair<TypeSpecifier, bool>;
 
 class Signature;
+class Referent;
+
+template <typename T>
 class SymbolTable;
+
 struct CodeKit;
 
 class Node {
@@ -39,7 +43,7 @@ class Node {
         node.print(output);
         return output;
     }
-    virtual void traverse(SymbolTable &st){};
+    virtual void traverse(SymbolTable<Referent> &st){};
     virtual llvm::Value *generateCode(CodeKit &kit){};
 };
 
@@ -53,7 +57,7 @@ class AST : public Node {
     vector<External *> *items;
     AST() { items = new vector<External *>; }
     virtual void print(ostream &output, int indent = 0) const;
-    virtual void traverse(SymbolTable &st);
+    virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -71,7 +75,8 @@ class Declaration : public BlockItem {
     Declaration(TypeSpecifier t, bool c, Signature *s)
         : type(t), constant(c), sig(s) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual void traverse(SymbolTable &st);
+    virtual void traverse(SymbolTable<Referent> &st);
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class Signature : public Node {
@@ -102,7 +107,7 @@ class CompoundStatement : public Statement {
     CompoundStatement() { items = new vector<BlockItem *>(); }
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual void traverse(SymbolTable &st);
+    virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -187,7 +192,7 @@ class Conditional : public Statement {
         : condition(c), ifstmt(i), elsestmt(e) {}
     Conditional(Expression *c, Statement *i) : condition(c), ifstmt(i) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual void traverse(SymbolTable &st);
+    virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -197,7 +202,8 @@ class While : public Statement {
     Statement *stmt;
     While(Expression *c, Statement *s) : cond(c), stmt(s) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual void traverse(SymbolTable &st);
+    virtual void traverse(SymbolTable<Referent> &st);
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class Return : public Statement {
@@ -216,7 +222,7 @@ class FunctionDeclaration : public External {
     FunctionDeclaration(TypeSpecifier t, string n, vector<Declaration *> *a)
         : ret(t), name(n), arguments(a) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual void traverse(SymbolTable &st);
+    virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Function *generateCode(CodeKit &kit);
 };
 
@@ -228,7 +234,7 @@ class FunctionDefinition : public External {
     FunctionDefinition(FunctionDeclaration *d, CompoundStatement *c)
         : decl(d), content(c) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual void traverse(SymbolTable &st);
+    virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Function *generateCode(CodeKit &kit);
 };
 
@@ -247,24 +253,30 @@ struct Referent {
     TypeSpecifier type;
     int pointers;
     Node *node;
+    llvm::AllocaInst *alloc;
     Referent(ReferentType rt, TypeSpecifier t, int p, Node *n)
         : rtype(rt), type(t), pointers(p), node(n) {}
+    Referent(ReferentType rt, TypeSpecifier t, int p, Node *n,
+             llvm::AllocaInst *a)
+        : rtype(rt), type(t), pointers(p), node(n), alloc(a) {}
 };
 
 // source https://stackoverflow.com/a/13428630/5837426
-class StackOfScopes : public stack<map<string, Referent *>> {
+template <typename T>
+class StackOfScopes : public stack<map<string, T *>> {
    public:
-    using stack<map<string, Referent *>>::c;  // expose the container
+    using stack<map<string, T *>>::c;  // expose the container
 };
 
+template <typename T>
 class SymbolTable {
    public:
-    StackOfScopes table;
+    StackOfScopes<T> table;
     void enterScope() {
-        auto *m = new map<string, Referent *>();
+        auto *m = new map<string, T *>();
         table.push(*m);
     }
-    Referent *findSymbol(string sym) {
+    T *findSymbol(string sym) {
         for (int i = 0; i < table.size(); ++i) {
             if (table.c[i].count(sym) != 0) {
                 return table.c[i][sym];
@@ -272,9 +284,7 @@ class SymbolTable {
         }
         return nullptr;
     }
-    void addSymbol(string sym, Referent *ref) {
-        table.top().insert({sym, ref});
-    }
+    void addSymbol(string sym, T *ref) { table.top().insert({sym, ref}); }
     bool checkScope(string sym) { return table.top().count(sym) != 0; }
     void exitScope() { table.pop(); }
     friend ostream &operator<<(ostream &output, const SymbolTable &st) {
@@ -296,7 +306,7 @@ struct CodeKit {
     llvm::LLVMContext context;
     llvm::IRBuilder<> builder;
     llvm::Module module;
-    SymbolTable symbolTable;
+    SymbolTable<llvm::AllocaInst> symbolTable;
     map<string, llvm::AllocaInst *> namedValues;
     CodeKit(string name) : module(name, context), builder(context) {}
 };

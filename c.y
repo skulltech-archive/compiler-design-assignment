@@ -132,7 +132,11 @@ generic_association
 postfix_expression
 	: primary_expression
 	| postfix_expression '[' expression ']'
-	| postfix_expression '(' ')'
+	| postfix_expression '(' ')' {
+		auto *var = dynamic_cast<Identifier*>($1);
+		auto *fncall = new FunctionCall(var->name, new vector<Expression *>);
+		$$ = fncall;
+	}
 	| postfix_expression '(' argument_expression_list ')' {
 		auto *var = dynamic_cast<Identifier*>($1);
 		auto *fncall = new FunctionCall(var->name, $3);
