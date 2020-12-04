@@ -23,13 +23,6 @@ using namespace std;
 enum class TypeSpecifier { Void, Int, Char, Ellipsis };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
-llvm::Value *logError(string error);
-void initLlvm();
-void emitCode();
-llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func, const string var,
-                                         llvm::Type *type);
-llvm::Type *generateType(TypeSpecifier type);
-
 enum ReferentType { Func, Var };
 ostream &operator<<(ostream &output, const ReferentType &type);
 
@@ -37,6 +30,7 @@ using DeclSpecifier = pair<TypeSpecifier, bool>;
 
 class Signature;
 class SymbolTable;
+struct CodeKit;
 
 class Node {
    public:
@@ -46,12 +40,12 @@ class Node {
         return output;
     }
     virtual void traverse(SymbolTable &st){};
-    virtual llvm::Value *generateCode(){};
+    virtual llvm::Value *generateCode(CodeKit &kit){};
 };
 
 class External : public Node {
    public:
-    virtual llvm::Function *generateCode(){};
+    virtual llvm::Function *generateCode(CodeKit &kit){};
 };
 
 class AST : public Node {
@@ -60,12 +54,12 @@ class AST : public Node {
     AST() { items = new vector<External *>; }
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class BlockItem : public Node {
    public:
-    virtual llvm::Value *generateCode(){};
+    virtual llvm::Value *generateCode(CodeKit &kit){};
 };
 
 class Declaration : public BlockItem {
@@ -99,7 +93,7 @@ class Ellipsis : public Declaration {
 
 class Statement : public BlockItem {
    public:
-    virtual llvm::Value *generateCode(){};
+    virtual llvm::Value *generateCode(CodeKit &kit){};
 };
 
 class CompoundStatement : public Statement {
@@ -109,12 +103,12 @@ class CompoundStatement : public Statement {
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class Expression : public Statement {
    public:
-    virtual llvm::Value *generateCode(){};
+    virtual llvm::Value *generateCode(CodeKit &kit){};
 };
 
 class Literal : public Expression {};
@@ -124,7 +118,7 @@ class IntLiteral : public Literal {
     int value;
     IntLiteral(int i) : value(i) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class StrLiteral : public Literal {
@@ -139,7 +133,7 @@ class Identifier : public Literal {
     string name;
     Identifier(string s) : name(s) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 enum class BinaryOperator {
@@ -171,7 +165,7 @@ class BinaryExpression : public Expression {
     BinaryExpression(BinaryOperator o, Expression *l, Expression *r)
         : op(o), left(l), right(r) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class Assignment : public Expression {
@@ -181,7 +175,7 @@ class Assignment : public Expression {
     Assignment(Identifier *v, Expression *e) : var(v), expr(e) {}
     Assignment(Expression *e) : expr(e) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class Conditional : public Statement {
@@ -194,7 +188,7 @@ class Conditional : public Statement {
     Conditional(Expression *c, Statement *i) : condition(c), ifstmt(i) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class While : public Statement {
@@ -211,7 +205,7 @@ class Return : public Statement {
     Expression *expr;
     Return(Expression *e) : expr(e) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class FunctionDeclaration : public External {
@@ -223,7 +217,7 @@ class FunctionDeclaration : public External {
         : ret(t), name(n), arguments(a) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
-    virtual llvm::Function *generateCode();
+    virtual llvm::Function *generateCode(CodeKit &kit);
 };
 
 class FunctionDefinition : public External {
@@ -235,7 +229,7 @@ class FunctionDefinition : public External {
         : decl(d), content(c) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable &st);
-    virtual llvm::Function *generateCode();
+    virtual llvm::Function *generateCode(CodeKit &kit);
 };
 
 class FunctionCall : public Expression {
@@ -245,7 +239,7 @@ class FunctionCall : public Expression {
     FunctionCall(string f, vector<Expression *> *a)
         : function(f), arguments(a) {}
     virtual void print(ostream &output, int indent = 0) const;
-    virtual llvm::Value *generateCode();
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 struct Referent {
@@ -276,7 +270,7 @@ class SymbolTable {
                 return table.c[i][sym];
             }
         }
-        return NULL;
+        return nullptr;
     }
     void addSymbol(string sym, Referent *ref) {
         table.top().insert({sym, ref});
@@ -297,3 +291,18 @@ class SymbolTable {
         return output;
     }
 };
+
+struct CodeKit {
+    llvm::LLVMContext context;
+    llvm::IRBuilder<> builder;
+    llvm::Module module;
+    SymbolTable symbolTable;
+    map<string, llvm::AllocaInst *> namedValues;
+    CodeKit(string name) : module(name, context), builder(context) {}
+};
+
+llvm::Value *logError(string error);
+void emitCode(CodeKit &kit);
+llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func, const string var,
+                                         llvm::Type *type);
+llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context);

@@ -19,6 +19,12 @@ void validateScope(AST &ast) {
     ast.traverse(st);
 };
 
+void generateCode(AST &ast) {
+    CodeKit kit("bootleg c compiler");
+    ast.generateCode(kit);
+    emitCode(kit);
+}
+
 int main(int argc, char **argv) {
     if (argc != 2) {
         usage();
@@ -32,8 +38,6 @@ int main(int argc, char **argv) {
     cout << "retv = " << ret << endl;
     cout << ast;
     validateScope(ast);
-    initLlvm();
-    ast.generateCode();
-    emitCode();
+    generateCode(ast);
     exit(0);
 }

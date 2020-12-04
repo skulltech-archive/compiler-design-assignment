@@ -3,7 +3,7 @@
 using namespace std;
 
 extern "C" {
-int four();
+int simple_arith();
 }
 
-int main() { cout << "calling four: " << four() << endl; }
+int main() { cout << "calling four: " << simple_arith() << endl; }

@@ -3,12 +3,11 @@
 #include <iostream>
 
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/IR/LegacyPassManager.h"
-
 
 using namespace std;
 
@@ -34,40 +33,29 @@ ostream &operator<<(ostream &output, const ReferentType &type) {
     return output;
 }
 
-unique_ptr<llvm::LLVMContext> theContext;
-unique_ptr<llvm::IRBuilder<>> builder;
-unique_ptr<llvm::Module> theModule;
-map<string, llvm::AllocaInst *> namedValues;
-
-llvm::Type *generateType(TypeSpecifier type) {
+llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context) {
     switch (type) {
         case TypeSpecifier::Int:
-            return llvm::Type::getInt32Ty(*theContext);
+            return llvm::Type::getInt32Ty(context);
             break;
         case TypeSpecifier::Char:
-            return llvm::Type::getInt32Ty(*theContext);
+            return llvm::Type::getInt32Ty(context);
             break;
         case TypeSpecifier::Void:
-            return llvm::Type::getVoidTy(*theContext);
+            return llvm::Type::getVoidTy(context);
             break;
         default:
             break;
     }
 }
 
-void initLlvm() {
-    theContext = make_unique<llvm::LLVMContext>();
-    theModule = make_unique<llvm::Module>("my cool jit", *theContext);
-    builder = make_unique<llvm::IRBuilder<>>(*theContext);
-}
-
-void emitCode() {
-    theModule->print(llvm::outs(), nullptr);
+void emitCode(CodeKit &kit) {
+    kit.module.print(llvm::outs(), nullptr);
 
     auto irFile = "output.bc";
     error_code ec;
     llvm::raw_fd_ostream irFileStream(irFile, ec, llvm::sys::fs::F_None);
-    llvm::WriteBitcodeToFile(*theModule, irFileStream);
+    llvm::WriteBitcodeToFile(kit.module, irFileStream);
     irFileStream.flush();
 
     auto targetTriple = llvm::sys::getDefaultTargetTriple();
@@ -83,18 +71,21 @@ void emitCode() {
     auto features = "";
     llvm::TargetOptions opt;
     auto rm = llvm::Optional<llvm::Reloc::Model>();
-    auto targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, rm);
+    auto targetMachine =
+        target->createTargetMachine(targetTriple, cpu, features, opt, rm);
 
-    theModule->setDataLayout(targetMachine->createDataLayout());
-    theModule->setTargetTriple(targetTriple);
+    kit.module.setDataLayout(targetMachine->createDataLayout());
+    kit.module.setTargetTriple(targetTriple);
 
     auto objectFile = "output.o";
-    llvm::raw_fd_ostream objectFileStream(objectFile, ec, llvm::sys::fs::OF_None);
+    llvm::raw_fd_ostream objectFileStream(objectFile, ec,
+                                          llvm::sys::fs::OF_None);
 
     llvm::legacy::PassManager pass;
     auto fileType = llvm::CGFT_ObjectFile;
-    targetMachine->addPassesToEmitFile(pass, objectFileStream, nullptr, fileType);
-    pass.run(*theModule);
+    targetMachine->addPassesToEmitFile(pass, objectFileStream, nullptr,
+                                       fileType);
+    pass.run(kit.module);
     objectFileStream.flush();
 }
 
@@ -127,9 +118,9 @@ void AST::traverse(SymbolTable &st) {
     st.exitScope();
 };
 
-llvm::Value *AST::generateCode() {
+llvm::Value *AST::generateCode(CodeKit &kit) {
     for (auto it : *items) {
-        auto *func = it->generateCode();
+        auto *func = it->generateCode(kit);
     }
 }
 
@@ -171,8 +162,8 @@ void IntLiteral::print(ostream &output, int indent) const {
     output << string(indent, ' ') << value;
 }
 
-llvm::Value *IntLiteral::generateCode() {
-    return llvm::ConstantInt::get(*theContext, llvm::APInt(32, value, true));
+llvm::Value *IntLiteral::generateCode(CodeKit &kit) {
+    return llvm::ConstantInt::get(kit.context, llvm::APInt(32, value, true));
 };
 
 void StrLiteral::print(ostream &output, int indent) const {
@@ -183,12 +174,12 @@ void Identifier::print(ostream &output, int indent) const {
     output << string(indent, ' ') << name;
 }
 
-llvm::Value *Identifier::generateCode() {
-    llvm::Value *v = namedValues[name];
+llvm::Value *Identifier::generateCode(CodeKit &kit) {
+    llvm::Value *v = kit.namedValues[name];
     if (v == nullptr) {
         logError("variable undeclared");
     }
-    return builder->CreateLoad(v, name.c_str());
+    return kit.builder.CreateLoad(v, name.c_str());
 };
 
 // CompoundStatement
@@ -208,9 +199,9 @@ void CompoundStatement::traverse(SymbolTable &st) {
     }
 }
 
-llvm::Value *CompoundStatement::generateCode() {
+llvm::Value *CompoundStatement::generateCode(CodeKit &kit) {
     for (auto it : *items) {
-        it->generateCode();
+        it->generateCode(kit);
     }
 };
 
@@ -221,60 +212,60 @@ void BinaryExpression::print(ostream &output, int indent) const {
            << ")";
 }
 
-llvm::Value *BinaryExpression::generateCode() {
-    auto *lv = left->generateCode();
-    auto *rv = right->generateCode();
+llvm::Value *BinaryExpression::generateCode(CodeKit &kit) {
+    auto *lv = left->generateCode(kit);
+    auto *rv = right->generateCode(kit);
     switch (op) {
         case BinaryOperator::Multiply:
-            return builder->CreateMul(lv, rv, "Multiply");
+            return kit.builder.CreateMul(lv, rv, "Multiply");
             break;
         case BinaryOperator::Divide:
-            return builder->CreateSDiv(lv, rv, "Divide");
+            return kit.builder.CreateSDiv(lv, rv, "Divide");
             break;
         case BinaryOperator::Plus:
-            return builder->CreateAdd(lv, rv, "Add");
+            return kit.builder.CreateAdd(lv, rv, "Add");
             break;
         case BinaryOperator::Minus:
-            return builder->CreateSub(lv, rv, "Subtract");
+            return kit.builder.CreateSub(lv, rv, "Subtract");
             break;
         case BinaryOperator::Left:
-            return builder->CreateShl(lv, rv, "Left shift");
+            return kit.builder.CreateShl(lv, rv, "Left shift");
             break;
         case BinaryOperator::Right:
-            return builder->CreateLShr(lv, rv, "Right shift");
+            return kit.builder.CreateLShr(lv, rv, "Right shift");
             break;
         case BinaryOperator::Less:
-            return builder->CreateICmpSLT(lv, rv, "Less");
+            return kit.builder.CreateICmpSLT(lv, rv, "Less");
             break;
         case BinaryOperator::Greater:
-            return builder->CreateICmpSGT(lv, rv, "Greater");
+            return kit.builder.CreateICmpSGT(lv, rv, "Greater");
             break;
         case BinaryOperator::LessEqual:
-            return builder->CreateICmpSLE(lv, rv, "Less or Equal");
+            return kit.builder.CreateICmpSLE(lv, rv, "Less or Equal");
             break;
         case BinaryOperator::GreaterEqual:
-            return builder->CreateICmpSGE(lv, rv, "Greater or Equal");
+            return kit.builder.CreateICmpSGE(lv, rv, "Greater or Equal");
             break;
         case BinaryOperator::Equal:
-            return builder->CreateICmpEQ(lv, rv, "Equal");
+            return kit.builder.CreateICmpEQ(lv, rv, "Equal");
             break;
         case BinaryOperator::NotEqual:
-            return builder->CreateICmpNE(lv, rv, "Not Equal");
+            return kit.builder.CreateICmpNE(lv, rv, "Not Equal");
             break;
         case BinaryOperator::BitwiseAnd:
-            return builder->CreateAnd(lv, rv, "Bitwise And");
+            return kit.builder.CreateAnd(lv, rv, "Bitwise And");
             break;
         case BinaryOperator::BitwiseXor:
-            return builder->CreateXor(lv, rv, "Bitwise Xor");
+            return kit.builder.CreateXor(lv, rv, "Bitwise Xor");
             break;
         case BinaryOperator::BitwiseOr:
-            return builder->CreateOr(lv, rv, "Bitwise Or");
+            return kit.builder.CreateOr(lv, rv, "Bitwise Or");
             break;
         case BinaryOperator::And:
-            return builder->CreateAnd(lv, rv, "And");
+            return kit.builder.CreateAnd(lv, rv, "And");
             break;
         case BinaryOperator::Or:
-            return builder->CreateOr(lv, rv, "Or");
+            return kit.builder.CreateOr(lv, rv, "Or");
             break;
         default:
             break;
@@ -291,16 +282,16 @@ void Assignment::print(ostream &output, int indent) const {
     output << *expr;
 }
 
-llvm::Value *Assignment::generateCode() {
-    llvm::Value *val = expr->generateCode();
+llvm::Value *Assignment::generateCode(CodeKit &kit) {
+    llvm::Value *val = expr->generateCode(kit);
     if (var == nullptr) {
         return val;
     }
-    llvm::Value *variable = namedValues[var->name];
+    llvm::Value *variable = kit.namedValues[var->name];
     if (variable == nullptr) {
         return logError("variable undeclared");
     }
-    builder->CreateStore(val, variable);
+    kit.builder.CreateStore(val, variable);
     return val;
 }
 
@@ -323,9 +314,9 @@ void Return::print(ostream &output, int indent) const {
     output << string(indent, ' ') << "Return " << *expr;
 }
 
-llvm::Value *Return::generateCode() {
-    auto *val = expr->generateCode();
-    builder->CreateRet(val);
+llvm::Value *Return::generateCode(CodeKit &kit) {
+    auto *val = expr->generateCode(kit);
+    kit.builder.CreateRet(val);
 }
 
 // Conditional
@@ -352,36 +343,36 @@ void Conditional::traverse(SymbolTable &st) {
     }
 }
 
-llvm::Value *Conditional::generateCode() {
-    auto *cond = condition->generateCode();
+llvm::Value *Conditional::generateCode(CodeKit &kit) {
+    auto *cond = condition->generateCode(kit);
     if (cond == nullptr) {
         return nullptr;
     }
-    llvm::Function *func = builder->GetInsertBlock()->getParent();
-    auto *ifBlock = llvm::BasicBlock::Create(*theContext, "if", func);
-    auto *elseBlock = llvm::BasicBlock::Create(*theContext, "else");
-    auto *mergeBlock = llvm::BasicBlock::Create(*theContext, "ifelsemerge");
+    llvm::Function *func = kit.builder.GetInsertBlock()->getParent();
+    auto *ifBlock = llvm::BasicBlock::Create(kit.context, "if", func);
+    auto *elseBlock = llvm::BasicBlock::Create(kit.context, "else");
+    auto *mergeBlock = llvm::BasicBlock::Create(kit.context, "ifelsemerge");
 
-    builder->CreateCondBr(cond, ifBlock, elseBlock);
-    builder->SetInsertPoint(ifBlock);
-    auto *ifVal = ifstmt->generateCode();
+    kit.builder.CreateCondBr(cond, ifBlock, elseBlock);
+    kit.builder.SetInsertPoint(ifBlock);
+    auto *ifVal = ifstmt->generateCode(kit);
     if (ifVal == nullptr) {
         return nullptr;
     }
-    builder->CreateBr(mergeBlock);
-    ifBlock = builder->GetInsertBlock();
+    kit.builder.CreateBr(mergeBlock);
+    ifBlock = kit.builder.GetInsertBlock();
 
     func->getBasicBlockList().push_back(elseBlock);
-    builder->SetInsertPoint(elseBlock);
-    auto *elseVal = elsestmt->generateCode();
+    kit.builder.SetInsertPoint(elseBlock);
+    auto *elseVal = elsestmt->generateCode(kit);
     if (elseVal == nullptr) {
         return nullptr;
     }
-    builder->CreateBr(mergeBlock);
-    elseBlock = builder->GetInsertBlock();
+    kit.builder.CreateBr(mergeBlock);
+    elseBlock = kit.builder.GetInsertBlock();
 
     func->getBasicBlockList().push_back(mergeBlock);
-    builder->SetInsertPoint(mergeBlock);
+    kit.builder.SetInsertPoint(mergeBlock);
 }
 
 // FunctionDeclaration
@@ -401,17 +392,17 @@ void FunctionDeclaration::traverse(SymbolTable &st) {
     st.addSymbol(this->name, ref);
 };
 
-llvm::Function *FunctionDeclaration::generateCode() {
+llvm::Function *FunctionDeclaration::generateCode(CodeKit &kit) {
     vector<llvm::Type *> argTypes;
     if (arguments != nullptr) {
         for (auto it : *arguments) {
-            argTypes.push_back(generateType(it->type));
+            argTypes.push_back(generateType(it->type, kit.context));
         }
     }
     llvm::FunctionType *funcType =
-        llvm::FunctionType::get(generateType(ret), argTypes, false);
+        llvm::FunctionType::get(generateType(ret, kit.context), argTypes, false);
     llvm::Function *func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, theModule.get());
+        funcType, llvm::Function::ExternalLinkage, name, &kit.module);
     int index = 0;
     for (auto &it : func->args()) {
         it.setName(arguments->at(index++)->sig->name);
@@ -439,32 +430,30 @@ void FunctionDefinition::traverse(SymbolTable &st) {
     st.exitScope();
 }
 
-llvm::Function *FunctionDefinition::generateCode() {
-    // theModule->dump();
-    auto *func = theModule->getFunction("main");
+llvm::Function *FunctionDefinition::generateCode(CodeKit &kit) {
+    auto *func = kit.module.getFunction("main");
     if (func == nullptr) {
-        func = decl->generateCode();
+        func = decl->generateCode(kit);
     }
     if (!func->empty()) {
         return (llvm::Function *)logError("redefinition of " + decl->name);
     }
-    // auto *func = decl->generateCode();
 
     llvm::BasicBlock *entryBlock =
-        llvm::BasicBlock::Create(*theContext, "entry", func);
-    builder->SetInsertPoint(entryBlock);
-    namedValues.clear();
+        llvm::BasicBlock::Create(kit.context, "entry", func);
+    kit.builder.SetInsertPoint(entryBlock);
+    kit.namedValues.clear();
 
     for (auto &arg : func->args()) {
         auto *alloca =
             createEntryBlockAlloca(func, arg.getName(), arg.getType());
-        builder->CreateStore(&arg, alloca);
-        namedValues[arg.getName()] = alloca;
+        kit.builder.CreateStore(&arg, alloca);
+        kit.namedValues[arg.getName()] = alloca;
     }
 
-    content->generateCode();
+    content->generateCode(kit);
     if (func->getReturnType()->isVoidTy()) {
-        builder->CreateRetVoid();
+        kit.builder.CreateRetVoid();
     }
     llvm::verifyFunction(*func);
     return func;
@@ -483,14 +472,14 @@ void FunctionCall::print(ostream &output, int indent) const {
     output << ")";
 }
 
-llvm::Value *FunctionCall::generateCode() {
-    llvm::Function *func = theModule->getFunction(function);
+llvm::Value *FunctionCall::generateCode(CodeKit &kit) {
+    llvm::Function *func = kit.module.getFunction(function);
     if (func == nullptr) {
         return logError("undefined reference to " + function);
     }
     vector<llvm::Value *> args;
     for (auto arg : *arguments) {
-        args.push_back(arg->generateCode());
+        args.push_back(arg->generateCode(kit));
     }
-    return builder->CreateCall(func, args, "call");
+    return kit.builder.CreateCall(func, args, "call");
 };
