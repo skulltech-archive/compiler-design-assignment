@@ -20,7 +20,7 @@
 
 using namespace std;
 
-enum class TypeSpecifier { Void, Int, Char, Ellipsis };
+enum class TypeSpecifier { Void, Int, Char };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
 enum ReferentType { Func, Var };
@@ -71,7 +71,8 @@ class Declaration : public BlockItem {
     TypeSpecifier type;
     bool constant;
     Signature *sig;
-    Declaration(TypeSpecifier t) : type(t) {}
+    bool ellipsis;
+    Declaration(bool i): ellipsis(i) {};
     Declaration(TypeSpecifier t, bool c, Signature *s)
         : type(t), constant(c), sig(s) {}
     virtual void print(ostream &output, int indent = 0) const;
@@ -90,7 +91,7 @@ class Signature : public Node {
 
 class Ellipsis : public Declaration {
    public:
-    Ellipsis() : Declaration(TypeSpecifier::Ellipsis) {}
+    Ellipsis() : Declaration(true) {}; 
     virtual void print(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << "...";
     }
@@ -131,6 +132,7 @@ class StrLiteral : public Literal {
     string str;
     StrLiteral(string s) : str(s) {}
     virtual void print(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
 class Identifier : public Literal {
@@ -219,8 +221,9 @@ class FunctionDeclaration : public External {
     TypeSpecifier ret;
     string name;
     vector<Declaration *> *arguments;
-    FunctionDeclaration(TypeSpecifier t, string n, vector<Declaration *> *a)
-        : ret(t), name(n), arguments(a) {}
+    bool varargs;
+    FunctionDeclaration(TypeSpecifier t, string n, vector<Declaration *> *a, bool v)
+        : ret(t), name(n), arguments(a), varargs(v) {}
     virtual void print(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Function *generateCode(CodeKit &kit);
@@ -315,4 +318,6 @@ llvm::Value *logError(string error);
 void emitCode(CodeKit &kit);
 llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func, const string var,
                                          llvm::Type *type);
-llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context);
+llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context,
+                         int pointers = 0);
+string unescape(const string& s);

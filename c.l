@@ -104,6 +104,8 @@ static int check_type(void);
 
 ({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+	{
     string *str = new string(strdup(yytext));
+    str->erase(0, 1);
+    str->erase(str->size() - 1);
     yylval.str = str;
     return STRING_LITERAL;
 }

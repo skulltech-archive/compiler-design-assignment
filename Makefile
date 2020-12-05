@@ -7,14 +7,23 @@ c.tab.cpp c.tab.hpp: c.y
 c.lex.cpp: c.l c.tab.hpp
 	flex -o c.lex.cpp -l c.l
 
-clean:
-	rm -f c.tab.cpp c.tab.hpp c.lex.cpp cc output.bc output.o main
+cleancc:
+	rm -f c.tab.cpp c.tab.hpp c.lex.cpp cc
 
-run: cc
+output.ir output.bc output.o runcc: cc
 	./cc examples/test.c
 
-clean-run: clean cc run
+clean-runcc: cleancc cc runcc
 
-main: cc
-	g++ output.o main.cpp -o main
-	./main
+output: output.ir output.bc output.o
+	g++ output.o -o output
+
+cleanoutput:
+	rm -f output.ir output.bc output.o output
+
+runoutput: output
+	./output
+
+clean-runoutput: cleanoutput output runoutput
+
+cleanall: cleancc cleanoutput 

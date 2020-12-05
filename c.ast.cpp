@@ -33,28 +33,67 @@ ostream &operator<<(ostream &output, const ReferentType &type) {
     return output;
 }
 
-llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context) {
+// source https://stackoverflow.com/a/5612287/5837426
+string unescape(const string &s) {
+    string res;
+    string::const_iterator it = s.begin();
+    while (it != s.end()) {
+        char c = *it++;
+        if (c == '\\' && it != s.end()) {
+            switch (*it++) {
+                case '\\':
+                    c = '\\';
+                    break;
+                case 'n':
+                    c = '\n';
+                    break;
+                case 't':
+                    c = '\t';
+                    break;
+                // all other escapes
+                default:
+                    // invalid escape sequence - skip it. alternatively you can
+                    // copy it as is, throw an exception...
+                    continue;
+            }
+        }
+        res += c;
+    }
+    return res;
+}
+
+llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context,
+                         int pointers) {
+    llvm::Type *ty;
     switch (type) {
         case TypeSpecifier::Int:
-            return llvm::Type::getInt32Ty(context);
+            ty = llvm::Type::getInt32Ty(context);
             break;
         case TypeSpecifier::Char:
-            return llvm::Type::getInt32Ty(context);
+            ty = llvm::Type::getInt8Ty(context);
             break;
         case TypeSpecifier::Void:
-            return llvm::Type::getVoidTy(context);
+            ty = llvm::Type::getVoidTy(context);
             break;
         default:
             break;
     }
+    for (unsigned i = 0; i < pointers; ++i) {
+        ty = ty->getPointerTo(0);
+    }
+    return ty;
 }
 
 void emitCode(CodeKit &kit) {
     llvm::verifyModule(kit.module, &llvm::outs());
     kit.module.print(llvm::outs(), nullptr);
+    auto tirFile = "output.ir";
+    error_code ec;
+    llvm::raw_fd_ostream tirFileStream(tirFile, ec, llvm::sys::fs::F_None);
+    kit.module.print(tirFileStream, nullptr);
+    tirFileStream.flush();
 
     auto irFile = "output.bc";
-    error_code ec;
     llvm::raw_fd_ostream irFileStream(irFile, ec, llvm::sys::fs::F_None);
     llvm::WriteBitcodeToFile(kit.module, irFileStream);
     irFileStream.flush();
@@ -71,7 +110,8 @@ void emitCode(CodeKit &kit) {
     auto cpu = "generic";
     auto features = "";
     llvm::TargetOptions opt;
-    auto rm = llvm::Optional<llvm::Reloc::Model>();
+    auto rm = llvm::Reloc::PIC_;
+    // auto rm = llvm::Optional<llvm::Reloc::Model>();
     auto targetMachine =
         target->createTargetMachine(targetTriple, cpu, features, opt, rm);
 
@@ -131,7 +171,7 @@ llvm::Value *AST::generateCode(CodeKit &kit) {
 
 void Declaration::print(ostream &output, int indent) const {
     output << string(indent, ' ') << type;
-    if (type != TypeSpecifier::Ellipsis) {
+    if (!ellipsis) {
         if (constant) {
             output << " const";
         }
@@ -146,7 +186,7 @@ void Declaration::traverse(SymbolTable<Referent> &st) {
 
 llvm::Value *Declaration::generateCode(CodeKit &kit) {
     llvm::Function *func = kit.builder.GetInsertBlock()->getParent();
-    llvm::Type *t = generateType(type, kit.context);
+    llvm::Type *t = generateType(type, kit.context, sig->pointers);
     auto *val = llvm::Constant::getNullValue(t);
     auto *alloca = createEntryBlockAlloca(func, sig->name, t);
     kit.builder.CreateStore(val, alloca);
@@ -181,6 +221,27 @@ llvm::Value *IntLiteral::generateCode(CodeKit &kit) {
 
 void StrLiteral::print(ostream &output, int indent) const {
     output << string(indent, ' ') << str;
+}
+
+// source https://stackoverflow.com/a/51811344/5837426
+llvm::Value *StrLiteral::generateCode(CodeKit &kit) {
+    string str = unescape(this->str);
+    auto charType = generateType(TypeSpecifier::Char, kit.context);
+    vector<llvm::Constant *> chars(str.length());
+    for (unsigned i = 0; i < str.size(); ++i) {
+        chars[i] = llvm::ConstantInt::get(charType, str[i]);
+    }
+    chars.push_back(llvm::ConstantInt::get(charType, 0));
+    auto stringType = llvm::ArrayType::get(charType, chars.size());
+
+    auto globalDecl = (llvm::GlobalVariable *)kit.module.getOrInsertGlobal(
+        ".str", stringType);
+    globalDecl->setInitializer(llvm::ConstantArray::get(stringType, chars));
+    globalDecl->setConstant(true);
+    globalDecl->setLinkage(llvm::GlobalValue::LinkageTypes::PrivateLinkage);
+    globalDecl->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+
+    return llvm::ConstantExpr::getBitCast(globalDecl, charType->getPointerTo());
 }
 
 void Identifier::print(ostream &output, int indent) const {
@@ -443,11 +504,12 @@ llvm::Function *FunctionDeclaration::generateCode(CodeKit &kit) {
     vector<llvm::Type *> argTypes;
     if (arguments != nullptr) {
         for (auto it : *arguments) {
-            argTypes.push_back(generateType(it->type, kit.context));
+            argTypes.push_back(
+                generateType(it->type, kit.context, it->sig->pointers));
         }
     }
     llvm::FunctionType *funcType = llvm::FunctionType::get(
-        generateType(ret, kit.context), argTypes, false);
+        generateType(ret, kit.context), argTypes, varargs);
     llvm::Function *func = llvm::Function::Create(
         funcType, llvm::Function::ExternalLinkage, name, &kit.module);
     int index = 0;

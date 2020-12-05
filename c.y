@@ -357,7 +357,7 @@ declaration_specifiers
 	}
 	| type_qualifier declaration_specifiers
 	| type_qualifier {
-		auto *declspec = new DeclSpecifier(TypeSpecifier::Ellipsis, true);
+		auto *declspec = new DeclSpecifier(TypeSpecifier::Int, true);
 		$$ = declspec;
 	}
 	| function_specifier declaration_specifiers
@@ -723,7 +723,13 @@ translation_unit
 external_declaration
 	: function_definition
 	| declaration {
-		auto *fn = new FunctionDeclaration($1->type, $1->sig->name, $1->sig->arguments);
+		auto *args = $1->sig->arguments;
+		bool varargs = false;
+		if (args->back()->ellipsis) {
+			args->pop_back();
+			varargs = true;
+		}
+		auto *fn = new FunctionDeclaration($1->type, $1->sig->name, args, varargs);
 		$$ = fn;
 	}
 	;
@@ -731,7 +737,13 @@ external_declaration
 function_definition
 	: declaration_specifiers declarator declaration_list compound_statement
 	| declaration_specifiers declarator compound_statement {
-		auto *decl = new FunctionDeclaration($1->first, $2->name, $2->arguments);
+		auto *args = $2->arguments;
+		bool varargs = false;
+		if (args->back()->ellipsis) {
+			args->pop_back();
+			varargs = true;
+		}
+		auto *decl = new FunctionDeclaration($1->first, $2->name, args, varargs);
         auto *fn = new FunctionDefinition(decl, $3);
         $$ = fn;
     }
