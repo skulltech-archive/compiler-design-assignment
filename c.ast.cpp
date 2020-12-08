@@ -144,9 +144,22 @@ llvm::Value *logError(string error) {
 
 // AST
 
-void AST::print(ostream &output, int indent) const {
+void AST::reproduce(ostream &output, int indent) const {
     for (auto it : *items) {
         output << *it << endl;
+    }
+}
+
+void AST::print(ostream &output, const string prefix, bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "AST" << endl;
+    for (auto it : *items) {
+        if (it == items->front()) {
+            it->print(output, prefix + (isFirst ? "│   " : "    "), true);
+        } else {
+            it->print(output, prefix + (isFirst ? "│   " : "    "), false);
+        }
     }
 }
 
@@ -169,7 +182,7 @@ llvm::Value *AST::generateCode(CodeKit &kit) {
 
 // Declaration
 
-void Declaration::print(ostream &output, int indent) const {
+void Declaration::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << type;
     if (!ellipsis) {
         if (constant) {
@@ -177,6 +190,15 @@ void Declaration::print(ostream &output, int indent) const {
         }
         output << " " << *sig;
     }
+}
+
+void Declaration::print(ostream &output, const string prefix,
+                        bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "Declaration(" << (constant ? "constant " : "") << type
+           << (ellipsis ? "..." : "") << ")" << endl;
+    sig->print(output, prefix + (isFirst ? "│   " : "    "), true);
 }
 
 void Declaration::traverse(SymbolTable<Referent> &st) {
@@ -196,7 +218,7 @@ llvm::Value *Declaration::generateCode(CodeKit &kit) {
 
 // Signature
 
-void Signature::print(ostream &output, int indent) const {
+void Signature::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << name << "(";
     if (arguments != nullptr) {
         for (auto it : *arguments) {
@@ -209,18 +231,48 @@ void Signature::print(ostream &output, int indent) const {
     output << ")";
 };
 
+void Signature::print(ostream &output, const string prefix,
+                      bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "Signature(" << string("*", pointers) << name << ")" << endl;
+    if (arguments != nullptr) {
+        for (auto it : *arguments) {
+            if (it == arguments->front()) {
+                it->print(output, prefix + (isFirst ? "│   " : "    "), true);
+            } else {
+                it->print(output, prefix + (isFirst ? "│   " : "    "), false);
+            }
+        }
+    }
+}
+
 // Literal
 
-void IntLiteral::print(ostream &output, int indent) const {
+void IntLiteral::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << value;
+}
+
+void IntLiteral::print(ostream &output, const string prefix,
+                       bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "IntLiteral(" << value << ")" << endl;
 }
 
 llvm::Value *IntLiteral::generateCode(CodeKit &kit) {
     return llvm::ConstantInt::get(kit.context, llvm::APInt(32, value, true));
 };
 
-void StrLiteral::print(ostream &output, int indent) const {
+void StrLiteral::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << str;
+}
+
+void StrLiteral::print(ostream &output, const string prefix,
+                       bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "IntLiteral(" << str << ")" << endl;
 }
 
 // source https://stackoverflow.com/a/51811344/5837426
@@ -244,8 +296,15 @@ llvm::Value *StrLiteral::generateCode(CodeKit &kit) {
     return llvm::ConstantExpr::getBitCast(globalDecl, charType->getPointerTo());
 }
 
-void Identifier::print(ostream &output, int indent) const {
+void Identifier::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << name;
+}
+
+void Identifier::print(ostream &output, const string prefix,
+                       bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "Identifier('" << name << "')" << endl;
 }
 
 llvm::Value *Identifier::generateCode(CodeKit &kit) {
@@ -258,13 +317,27 @@ llvm::Value *Identifier::generateCode(CodeKit &kit) {
 
 // CompoundStatement
 
-void CompoundStatement::print(ostream &output, int indent) const {
+void CompoundStatement::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << "{" << endl;
     for (auto it : *items) {
-        it->print(output, indent + 4);
+        it->reproduce(output, indent + 4);
         output << endl;
     }
     output << string(indent, ' ') << "}";
+}
+
+void CompoundStatement::print(ostream &output, const string prefix,
+                              bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "CompoundStatement" << endl;
+    for (auto it : *items) {
+        if (it == items->front()) {
+            it->print(output, prefix + (isFirst ? "│   " : "    "), true);
+        } else {
+            it->print(output, prefix + (isFirst ? "│   " : "    "), false);
+        }
+    }
 }
 
 void CompoundStatement::traverse(SymbolTable<Referent> &st) {
@@ -281,9 +354,18 @@ llvm::Value *CompoundStatement::generateCode(CodeKit &kit) {
 
 // BinaryExpression
 
-void BinaryExpression::print(ostream &output, int indent) const {
+void BinaryExpression::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << op << "(" << *left << ", " << *right
            << ")";
+}
+
+void BinaryExpression::print(ostream &output, const string prefix,
+                             bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "BinaryExpression(" << op << ")" << endl;
+    left->print(output, prefix + (isFirst ? "│   " : "    "), true);
+    right->print(output, prefix + (isFirst ? "│   " : "    "), false);
 }
 
 llvm::Value *BinaryExpression::generateCode(CodeKit &kit) {
@@ -348,12 +430,23 @@ llvm::Value *BinaryExpression::generateCode(CodeKit &kit) {
 
 // Assignment
 
-void Assignment::print(ostream &output, int indent) const {
+void Assignment::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ');
     if (var != nullptr) {
         output << *var << " = ";
     }
     output << *expr;
+}
+
+void Assignment::print(ostream &output, const string prefix,
+                       bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "Assignment" << endl;
+    if (var != nullptr) {
+        var->print(output, prefix + (isFirst ? "│   " : "    "), true);
+    }
+    expr->print(output, prefix + (isFirst ? "│   " : "    "), false);
 }
 
 llvm::Value *Assignment::generateCode(CodeKit &kit) {
@@ -371,9 +464,17 @@ llvm::Value *Assignment::generateCode(CodeKit &kit) {
 
 // While
 
-void While::print(ostream &output, int indent) const {
+void While::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << "While (" << *cond << ")" << endl;
-    stmt->print(output, indent + 4);
+    stmt->reproduce(output, indent + 4);
+}
+
+void While::print(ostream &output, const string prefix, bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "While" << endl;
+    cond->print(output, prefix + (isFirst ? "│   " : "    "), true);
+    stmt->print(output, prefix + (isFirst ? "│   " : "    "), false);
 }
 
 void While::traverse(SymbolTable<Referent> &st) {
@@ -411,8 +512,15 @@ llvm::Value *While::generateCode(CodeKit &kit) {
 
 // Return
 
-void Return::print(ostream &output, int indent) const {
+void Return::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << "Return " << *expr;
+}
+
+void Return::print(ostream &output, const string prefix, bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "Return" << endl;
+    expr->print(output, prefix + (isFirst ? "│   " : "    "), true);
 }
 
 llvm::Value *Return::generateCode(CodeKit &kit) {
@@ -422,12 +530,23 @@ llvm::Value *Return::generateCode(CodeKit &kit) {
 
 // Conditional
 
-void Conditional::print(ostream &output, int indent) const {
+void Conditional::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << "If (" << *condition << ")" << endl;
-    ifstmt->print(output, indent + 4);
+    ifstmt->reproduce(output, indent + 4);
     if (elsestmt != nullptr) {
         output << endl << string(indent, ' ') << "Else" << endl;
-        elsestmt->print(output, indent + 4);
+        elsestmt->reproduce(output, indent + 4);
+    }
+}
+
+void Conditional::print(ostream &output, const string prefix,
+                        bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "Conditional" << endl;
+    ifstmt->print(output, prefix + (isFirst ? "│   " : "    "), true);
+    if (elsestmt != nullptr) {
+        ifstmt->print(output, prefix + (isFirst ? "│   " : "    "), false);
     }
 }
 
@@ -485,7 +604,7 @@ llvm::Value *Conditional::generateCode(CodeKit &kit) {
 
 // FunctionDeclaration
 
-void FunctionDeclaration::print(ostream &output, int indent) const {
+void FunctionDeclaration::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << "function " << ret << " " << name << " (";
     if (arguments != nullptr) {
         for (auto it : *arguments) {
@@ -494,6 +613,23 @@ void FunctionDeclaration::print(ostream &output, int indent) const {
     }
     output << ")";
 };
+
+void FunctionDeclaration::print(ostream &output, const string prefix,
+                                bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "FunctionDeclaration(" << ret << " " << name
+           << (varargs ? " varargs" : "") << ")" << endl;
+    if (arguments != nullptr) {
+        for (auto it : *arguments) {
+            if (it == arguments->front()) {
+                it->print(output, prefix + (isFirst ? "│   " : "    "), true);
+            } else {
+                it->print(output, prefix + (isFirst ? "│   " : "    "), false);
+            }
+        }
+    }
+}
 
 void FunctionDeclaration::traverse(SymbolTable<Referent> &st) {
     auto *ref = new Referent(ReferentType::Func, this->ret, 0, this);
@@ -521,10 +657,19 @@ llvm::Function *FunctionDeclaration::generateCode(CodeKit &kit) {
 
 // FunctionDefinition
 
-void FunctionDefinition::print(ostream &output, int indent) const {
+void FunctionDefinition::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << *decl << endl;
-    content->print(output, indent + 4);
+    content->reproduce(output, indent + 4);
 };
+
+void FunctionDefinition::print(ostream &output, const string prefix,
+                               bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "FunctionDefinition" << endl;
+    decl->print(output, prefix + (isFirst ? "│   " : "    "), true);
+    content->print(output, prefix + (isFirst ? "│   " : "    "), false);
+}
 
 void FunctionDefinition::traverse(SymbolTable<Referent> &st) {
     decl->traverse(st);
@@ -571,7 +716,7 @@ llvm::Function *FunctionDefinition::generateCode(CodeKit &kit) {
 
 // FunctionCall
 
-void FunctionCall::print(ostream &output, int indent) const {
+void FunctionCall::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << function << "(";
     for (auto it : *arguments) {
         output << *it;
@@ -580,6 +725,22 @@ void FunctionCall::print(ostream &output, int indent) const {
         }
     }
     output << ")";
+}
+
+void FunctionCall::print(ostream &output, const string prefix,
+                         bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "FunctionCall(" << function << ")" << endl;
+    if (arguments != nullptr) {
+        for (auto it : *arguments) {
+            if (it == arguments->front()) {
+                it->print(output, prefix + (isFirst ? "│   " : "    "), true);
+            } else {
+                it->print(output, prefix + (isFirst ? "│   " : "    "), false);
+            }
+        }
+    }
 }
 
 llvm::Value *FunctionCall::generateCode(CodeKit &kit) {

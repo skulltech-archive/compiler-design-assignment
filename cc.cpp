@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
     AST ast;
     int ret = yyparse(&ast);
     cout << "retv = " << ret << endl;
-    // cout << ast;
+    cout << ast;
     // validateScope(ast);
     generateCode(ast);
     exit(0);

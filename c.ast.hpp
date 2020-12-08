@@ -38,7 +38,10 @@ struct CodeKit;
 
 class Node {
    public:
-    virtual void print(ostream &output, int indent = 0) const {};
+    // source https://stackoverflow.com/a/51730733/5837426
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const {};
+    virtual void reproduce(ostream &output, int indent = 0) const {};
     friend ostream &operator<<(ostream &output, const Node &node) {
         node.print(output);
         return output;
@@ -56,7 +59,9 @@ class AST : public Node {
    public:
     vector<External *> *items;
     AST() { items = new vector<External *>; }
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
@@ -72,10 +77,12 @@ class Declaration : public BlockItem {
     bool constant;
     Signature *sig;
     bool ellipsis;
-    Declaration(bool i): ellipsis(i) {};
+    Declaration(bool i) : ellipsis(i){};
     Declaration(TypeSpecifier t, bool c, Signature *s)
         : type(t), constant(c), sig(s) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
@@ -86,13 +93,15 @@ class Signature : public Node {
     string name;
     vector<Declaration *> *arguments;
     Signature(string n) : pointers(0), name(n) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
 };
 
 class Ellipsis : public Declaration {
    public:
-    Ellipsis() : Declaration(true) {}; 
-    virtual void print(ostream &output, int indent = 0) const {
+    Ellipsis() : Declaration(true){};
+    virtual void reproduce(ostream &output, int indent = 0) const {
         output << string(indent, ' ') << "...";
     }
 };
@@ -107,7 +116,9 @@ class CompoundStatement : public Statement {
     vector<BlockItem *> *items;
     CompoundStatement() { items = new vector<BlockItem *>(); }
     CompoundStatement(vector<BlockItem *> *i) : items(i) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
@@ -123,7 +134,9 @@ class IntLiteral : public Literal {
    public:
     int value;
     IntLiteral(int i) : value(i) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -131,7 +144,9 @@ class StrLiteral : public Literal {
    public:
     string str;
     StrLiteral(string s) : str(s) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -139,7 +154,9 @@ class Identifier : public Literal {
    public:
     string name;
     Identifier(string s) : name(s) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -171,7 +188,9 @@ class BinaryExpression : public Expression {
     Expression *right;
     BinaryExpression(BinaryOperator o, Expression *l, Expression *r)
         : op(o), left(l), right(r) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -181,7 +200,9 @@ class Assignment : public Expression {
     Expression *expr;
     Assignment(Identifier *v, Expression *e) : var(v), expr(e) {}
     Assignment(Expression *e) : expr(e) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -193,7 +214,9 @@ class Conditional : public Statement {
     Conditional(Expression *c, Statement *i, Statement *e)
         : condition(c), ifstmt(i), elsestmt(e) {}
     Conditional(Expression *c, Statement *i) : condition(c), ifstmt(i) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
@@ -203,7 +226,9 @@ class While : public Statement {
     Expression *cond;
     Statement *stmt;
     While(Expression *c, Statement *s) : cond(c), stmt(s) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
@@ -212,7 +237,9 @@ class Return : public Statement {
    public:
     Expression *expr;
     Return(Expression *e) : expr(e) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -222,9 +249,12 @@ class FunctionDeclaration : public External {
     string name;
     vector<Declaration *> *arguments;
     bool varargs;
-    FunctionDeclaration(TypeSpecifier t, string n, vector<Declaration *> *a, bool v)
+    FunctionDeclaration(TypeSpecifier t, string n, vector<Declaration *> *a,
+                        bool v)
         : ret(t), name(n), arguments(a), varargs(v) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Function *generateCode(CodeKit &kit);
 };
@@ -233,10 +263,11 @@ class FunctionDefinition : public External {
    public:
     FunctionDeclaration *decl;
     CompoundStatement *content;
-    bool hasReturn;
     FunctionDefinition(FunctionDeclaration *d, CompoundStatement *c)
         : decl(d), content(c) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual void traverse(SymbolTable<Referent> &st);
     virtual llvm::Function *generateCode(CodeKit &kit);
 };
@@ -247,7 +278,9 @@ class FunctionCall : public Expression {
     vector<Expression *> *arguments;
     FunctionCall(string f, vector<Expression *> *a)
         : function(f), arguments(a) {}
-    virtual void print(ostream &output, int indent = 0) const;
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
@@ -320,4 +353,4 @@ llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func, const string var,
                                          llvm::Type *type);
 llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context,
                          int pointers = 0);
-string unescape(const string& s);
+string unescape(const string &s);
