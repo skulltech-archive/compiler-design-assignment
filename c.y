@@ -739,7 +739,7 @@ function_definition
 	| declaration_specifiers declarator compound_statement {
 		auto *args = $2->arguments;
 		bool varargs = false;
-		if (args->back()->ellipsis) {
+		if (args != nullptr && args->back()->ellipsis) {
 			args->pop_back();
 			varargs = true;
 		}

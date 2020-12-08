@@ -26,4 +26,6 @@ runoutput: output
 
 clean-runoutput: cleanoutput output runoutput
 
-cleanall: cleancc cleanoutput 
+cleanall: cleancc cleanoutput
+runall: runcc runoutput
+cleanall-runall: cleanall runoutput
