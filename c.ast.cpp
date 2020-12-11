@@ -1,6 +1,7 @@
 #include "c.ast.hpp"
 
 #include <iostream>
+#include <typeinfo>
 
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -12,7 +13,8 @@
 using namespace std;
 
 ostream &operator<<(ostream &output, const TypeSpecifier &type) {
-    const string stringreps[]{"void", "int", "char", "..."};
+    const string stringreps[]{"void", "char",  "short", "int",
+                              "long", "float", "double"};
     cout << stringreps[static_cast<int>(type)];
     return output;
 }
@@ -66,14 +68,26 @@ llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context,
                          int pointers) {
     llvm::Type *ty;
     switch (type) {
-        case TypeSpecifier::Int:
-            ty = llvm::Type::getInt32Ty(context);
+        case TypeSpecifier::Void:
+            ty = llvm::Type::getVoidTy(context);
             break;
         case TypeSpecifier::Char:
             ty = llvm::Type::getInt8Ty(context);
             break;
-        case TypeSpecifier::Void:
-            ty = llvm::Type::getVoidTy(context);
+        case TypeSpecifier::Short:
+            ty = llvm::Type::getInt16Ty(context);
+            break;
+        case TypeSpecifier::Int:
+            ty = llvm::Type::getInt32Ty(context);
+            break;
+        case TypeSpecifier::Long:
+            ty = llvm::Type::getInt64Ty(context);
+            break;
+        case TypeSpecifier::Float:
+            ty = llvm::Type::getFloatTy(context);
+            break;
+        case TypeSpecifier::Double:
+            ty = llvm::Type::getDoubleTy(context);
             break;
         default:
             break;
@@ -87,7 +101,7 @@ llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context,
 void emitCode(CodeKit &kit) {
     llvm::verifyModule(kit.module, &llvm::outs());
     kit.module.print(llvm::outs(), nullptr);
-    auto tirFile = "output.ir";
+    auto tirFile = "output.ll";
     error_code ec;
     llvm::raw_fd_ostream tirFileStream(tirFile, ec, llvm::sys::fs::F_None);
     kit.module.print(tirFileStream, nullptr);
@@ -264,6 +278,21 @@ llvm::Value *IntLiteral::generateCode(CodeKit &kit) {
     return llvm::ConstantInt::get(kit.context, llvm::APInt(32, value, true));
 };
 
+void FloatLiteral::reproduce(ostream &output, int indent) const {
+    output << string(indent, ' ') << value;
+}
+
+void FloatLiteral::print(ostream &output, const string prefix,
+                         bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "FloatLiteral(" << value << ")" << endl;
+}
+
+llvm::Value *FloatLiteral::generateCode(CodeKit &kit) {
+    return llvm::ConstantFP::get(kit.context, llvm::APFloat(value));
+};
+
 void StrLiteral::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << str;
 }
@@ -374,12 +403,15 @@ llvm::Value *BinaryExpression::generateCode(CodeKit &kit) {
     switch (op) {
         case BinaryOperator::Multiply:
             return kit.builder.CreateMul(lv, rv, "mul");
-            break;
         case BinaryOperator::Divide:
             return kit.builder.CreateSDiv(lv, rv, "div");
             break;
         case BinaryOperator::Plus:
-            return kit.builder.CreateAdd(lv, rv, "add");
+            if (lv->getType()->isFloatingPointTy()) {
+                return kit.builder.CreateFAdd(lv, rv, "add");
+            } else {
+                return kit.builder.CreateAdd(lv, rv, "add");
+            }
             break;
         case BinaryOperator::Minus:
             return kit.builder.CreateSub(lv, rv, "sub");
@@ -426,6 +458,56 @@ llvm::Value *BinaryExpression::generateCode(CodeKit &kit) {
         default:
             break;
     }
+};
+
+// Cast Expression
+
+void CastExpression::reproduce(ostream &output, int indent) const {
+    output << string(indent, ' ') << "(" << type << ")";
+    expr->reproduce(output);
+}
+
+void CastExpression::print(ostream &output, const string prefix,
+                           bool isFirst) const {
+    output << prefix;
+    output << (isFirst ? "├──" : "└──");
+    output << "CastExpression(" << type << ")" << endl;
+    expr->print(output, prefix + (isFirst ? "│   " : "    "), true);
+}
+
+llvm::Value *CastExpression::generateCode(CodeKit &kit) {
+    auto *val = expr->generateCode(kit);
+    llvm::Instruction::CastOps ops;
+    switch (type) {
+        case TypeSpecifier::Double:
+            if (val->getType()->isFloatingPointTy()) {
+                ops = llvm::Instruction::CastOps::FPExt;
+            } else if(val->getType()->isIntegerTy()) {
+                ops = llvm::Instruction::CastOps::SIToFP;
+            } else {
+                return nullptr;
+            }
+            break;
+        case TypeSpecifier::Float:
+            if (val->getType()->isFloatingPointTy()) {
+                ops = llvm::Instruction::CastOps::FPTrunc;
+            } else if(val->getType()->isIntegerTy()) {
+                ops = llvm::Instruction::CastOps::SIToFP;
+            } else {
+                return nullptr;
+            }
+            break;
+        case TypeSpecifier::Int:
+            if (val->getType()->isFloatingPointTy()) {
+                ops = llvm::Instruction::CastOps::FPToSI;
+            } else {
+                return val;
+            }
+        default:
+            return nullptr;
+            break;
+    }
+    return kit.builder.CreateCast(ops, val, generateType(type, kit.context));
 };
 
 // Assignment

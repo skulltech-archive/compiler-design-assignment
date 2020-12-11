@@ -20,7 +20,7 @@
 
 using namespace std;
 
-enum class TypeSpecifier { Void, Int, Char };
+enum class TypeSpecifier { Void, Char, Short, Int, Long, Float, Double };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
 enum ReferentType { Func, Var };
@@ -140,6 +140,16 @@ class IntLiteral : public Literal {
     virtual llvm::Value *generateCode(CodeKit &kit);
 };
 
+class FloatLiteral : public Literal {
+   public:
+    float value;
+    FloatLiteral(float i) : value(i) {}
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode(CodeKit &kit);
+};
+
 class StrLiteral : public Literal {
    public:
     string str;
@@ -188,6 +198,17 @@ class BinaryExpression : public Expression {
     Expression *right;
     BinaryExpression(BinaryOperator o, Expression *l, Expression *r)
         : op(o), left(l), right(r) {}
+    virtual void print(ostream &output, const string prefix = "",
+                       bool isFirst = false) const;
+    virtual void reproduce(ostream &output, int indent = 0) const;
+    virtual llvm::Value *generateCode(CodeKit &kit);
+};
+
+class CastExpression : public Expression {
+   public:
+    TypeSpecifier type;
+    Expression *expr;
+    CastExpression(TypeSpecifier t, Expression *e) : type(t), expr(e) {}
     virtual void print(ostream &output, const string prefix = "",
                        bool isFirst = false) const;
     virtual void reproduce(ostream &output, int indent = 0) const;

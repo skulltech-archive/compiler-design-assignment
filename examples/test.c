@@ -2,8 +2,8 @@ int printf(char const *format, ...);
 
 void empty() { }
 
-int simple_arith() {
-  return (10 - 10/3) << 3 | (23+8*12) & 1024;
+void simple_arith() {
+  (10 - 10/3) << 3 | (23+8*12) & 1024;
 }
 
 void simple_arith_with_arg(int d) {
@@ -32,7 +32,8 @@ int fibonacci(int a, int b, int n)
 	return b;
 }
 
-int main() {
+int main()
+{
   printf("%d\n", fibonacci(factorial(1), factorial(2), factorial(5)));
   return 0;
 }

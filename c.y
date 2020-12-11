@@ -39,6 +39,7 @@ void yyerror(AST *ast, const char *s);
 %union {
     string *str;
     int num;
+	float fnum;
     TypeSpecifier typespec;
     FunctionDefinition *func;
     AST *ast;
@@ -60,18 +61,19 @@ void yyerror(AST *ast, const char *s);
 	External *ext;
 }
 
-%type<typespec> type_specifier
+%type<typespec> type_specifier specifier_qualifier_list type_name
 %type<declspec> declaration_specifiers
 %type<str> IDENTIFIER STRING_LITERAL string
-%type<num> I_CONSTANT constant pointer
+%type<num> I_CONSTANT pointer
+%type<fnum> F_CONSTANT 
 %type<ext> external_declaration
 %type<func> function_definition
 %type<ast> translation_unit
 %type<decl> parameter_declaration declaration
 %type<decls> parameter_list parameter_type_list
 %type<sig> declarator direct_declarator init_declarator init_declarator_list
-%type<lit> cast_expression unary_expression
-%type<expr> multiplicative_expression shift_expression additive_expression relational_expression equality_expression inclusive_or_expression exclusive_or_expression and_expression logical_or_expression logical_and_expression primary_expression conditional_expression expression expression_statement postfix_expression
+%type<lit> unary_expression constant
+%type<expr> cast_expression multiplicative_expression shift_expression additive_expression relational_expression equality_expression inclusive_or_expression exclusive_or_expression and_expression logical_or_expression logical_and_expression primary_expression conditional_expression expression expression_statement postfix_expression
 %type<assign> assignment_expression
 %type<stmt> statement
 %type<block> block_item
@@ -88,10 +90,7 @@ primary_expression
         auto *var = new Identifier(*$1);
         $$ = var;
     }
-	| constant {
-        auto *num = new IntLiteral($1);
-        $$ = num;
-    }
+	| constant
 	| string {
 		auto *str = new StrLiteral(*$1);
 		$$ = str;
@@ -101,8 +100,14 @@ primary_expression
 	;
 
 constant
-	: I_CONSTANT
-	| F_CONSTANT
+	: I_CONSTANT {
+		auto *num = new IntLiteral($1);
+        $$ = num;
+    }
+	| F_CONSTANT {
+        auto *num = new FloatLiteral($1);
+        $$ = num;
+    }
 	| ENUMERATION_CONSTANT	/* after it has been defined as such */
 	;
 
@@ -183,7 +188,10 @@ unary_operator
 
 cast_expression
 	: unary_expression
-	| '(' type_name ')' cast_expression
+	| '(' type_name ')' cast_expression {
+		auto *expr = new CastExpression($2, $4);
+		$$ = expr;
+	}
 	;
 
 multiplicative_expression
@@ -388,11 +396,11 @@ storage_class_specifier
 type_specifier
 	: VOID { $$ = TypeSpecifier::Void; }
 	| CHAR { $$ = TypeSpecifier::Char; }
-	| SHORT
+	| SHORT { $$ = TypeSpecifier::Short; }
 	| INT { $$ = TypeSpecifier::Int; }
-	| LONG
-	| FLOAT
-	| DOUBLE
+	| LONG { $$ = TypeSpecifier::Long; }
+	| FLOAT { $$ = TypeSpecifier::Float; }
+	| DOUBLE { $$ = TypeSpecifier::Double; }
 	| SIGNED
 	| UNSIGNED
 	| BOOL

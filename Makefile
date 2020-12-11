@@ -10,16 +10,16 @@ c.lex.cpp: c.l c.tab.hpp
 cleancc:
 	rm -f c.tab.cpp c.tab.hpp c.lex.cpp cc
 
-output.ir output.bc output.o runcc: cc
+output.ll output.bc output.o runcc: cc
 	./cc examples/test.c
 
 clean-runcc: cleancc cc runcc
 
-output: output.ir output.bc output.o
+output: output.ll output.bc output.o
 	g++ output.o -o output
 
 cleanoutput:
-	rm -f output.ir output.bc output.o output
+	rm -f output.ll output.bc output.o output
 
 runoutput: output
 	./output
@@ -30,11 +30,11 @@ opt.so: c.opt.cpp
 	g++ -g c.opt.cpp `llvm-config --cxxflags --ldflags --libs` -Wall -shared -fPIC -o $@
 
 cleanopt:
-	rm -f opt.so output.opt.ir output.opt.o output.opt 
+	rm -f opt.so output.opt.ll output.opt.o output.opt 
 
 runopt: opt.so
-	opt -S -load ./opt.so -deadcondbr -deadbr < output.ir | tee output.opt.ir
-	llc -filetype=obj --relocation-model=pic opt.ir -o output.opt.o
+	opt -S -load ./opt.so -deadcondbr -deadbr < output.ll | tee output.opt.ll
+	llc -filetype=obj --relocation-model=pic output.opt.ll -o output.opt.o
 	gcc output.opt.o -o output.opt
 	./output.opt
 
