@@ -352,7 +352,7 @@ llvm::Value *CompoundStatement::generateCode(CodeKit &kit) {
     }
 };
 
-// BinaryExpression
+// Binary Expression
 
 void BinaryExpression::reproduce(ostream &output, int indent) const {
     output << string(indent, ' ') << op << "(" << *left << ", " << *right
@@ -373,55 +373,55 @@ llvm::Value *BinaryExpression::generateCode(CodeKit &kit) {
     auto *rv = right->generateCode(kit);
     switch (op) {
         case BinaryOperator::Multiply:
-            return kit.builder.CreateMul(lv, rv, "Multiply");
+            return kit.builder.CreateMul(lv, rv, "mul");
             break;
         case BinaryOperator::Divide:
-            return kit.builder.CreateSDiv(lv, rv, "Divide");
+            return kit.builder.CreateSDiv(lv, rv, "div");
             break;
         case BinaryOperator::Plus:
-            return kit.builder.CreateAdd(lv, rv, "Add");
+            return kit.builder.CreateAdd(lv, rv, "add");
             break;
         case BinaryOperator::Minus:
-            return kit.builder.CreateSub(lv, rv, "Subtract");
+            return kit.builder.CreateSub(lv, rv, "sub");
             break;
         case BinaryOperator::Left:
-            return kit.builder.CreateShl(lv, rv, "Left shift");
+            return kit.builder.CreateShl(lv, rv, "lshift");
             break;
         case BinaryOperator::Right:
-            return kit.builder.CreateLShr(lv, rv, "Right shift");
+            return kit.builder.CreateLShr(lv, rv, "rshift");
             break;
         case BinaryOperator::Less:
-            return kit.builder.CreateICmpSLT(lv, rv, "Less");
+            return kit.builder.CreateICmpSLT(lv, rv, "less");
             break;
         case BinaryOperator::Greater:
-            return kit.builder.CreateICmpSGT(lv, rv, "Greater");
+            return kit.builder.CreateICmpSGT(lv, rv, "greater");
             break;
         case BinaryOperator::LessEqual:
-            return kit.builder.CreateICmpSLE(lv, rv, "Less or Equal");
+            return kit.builder.CreateICmpSLE(lv, rv, "lesseq");
             break;
         case BinaryOperator::GreaterEqual:
-            return kit.builder.CreateICmpSGE(lv, rv, "Greater or Equal");
+            return kit.builder.CreateICmpSGE(lv, rv, "greatereq");
             break;
         case BinaryOperator::Equal:
-            return kit.builder.CreateICmpEQ(lv, rv, "Equal");
+            return kit.builder.CreateICmpEQ(lv, rv, "eq");
             break;
         case BinaryOperator::NotEqual:
-            return kit.builder.CreateICmpNE(lv, rv, "Not Equal");
+            return kit.builder.CreateICmpNE(lv, rv, "noteq");
             break;
         case BinaryOperator::BitwiseAnd:
-            return kit.builder.CreateAnd(lv, rv, "Bitwise And");
+            return kit.builder.CreateAnd(lv, rv, "bitwiseand");
             break;
         case BinaryOperator::BitwiseXor:
-            return kit.builder.CreateXor(lv, rv, "Bitwise Xor");
+            return kit.builder.CreateXor(lv, rv, "bitwisexor");
             break;
         case BinaryOperator::BitwiseOr:
-            return kit.builder.CreateOr(lv, rv, "Bitwise Or");
+            return kit.builder.CreateOr(lv, rv, "bitwiseor");
             break;
         case BinaryOperator::And:
-            return kit.builder.CreateAnd(lv, rv, "And");
+            return kit.builder.CreateAnd(lv, rv, "and");
             break;
         case BinaryOperator::Or:
-            return kit.builder.CreateOr(lv, rv, "Or");
+            return kit.builder.CreateOr(lv, rv, "or");
             break;
         default:
             break;
@@ -568,6 +568,7 @@ llvm::Value *Conditional::generateCode(CodeKit &kit) {
     if (cond == nullptr) {
         return nullptr;
     }
+    bool mergeUsed = false;
     llvm::Function *func = kit.builder.GetInsertBlock()->getParent();
     auto *ifBlock = llvm::BasicBlock::Create(kit.context, "if", func);
     auto *elseBlock = llvm::BasicBlock::Create(kit.context, "else");
@@ -583,6 +584,7 @@ llvm::Value *Conditional::generateCode(CodeKit &kit) {
     ifBlock = kit.builder.GetInsertBlock();
     if (ifBlock->getTerminator() == nullptr) {
         kit.builder.CreateBr(mergeBlock);
+        mergeUsed = true;
     }
 
     func->getBasicBlockList().push_back(elseBlock);
@@ -595,10 +597,14 @@ llvm::Value *Conditional::generateCode(CodeKit &kit) {
     elseBlock = kit.builder.GetInsertBlock();
     if (elseBlock->getTerminator() == nullptr) {
         kit.builder.CreateBr(mergeBlock);
+        mergeUsed = true;
     }
 
-    func->getBasicBlockList().push_back(mergeBlock);
-    kit.builder.SetInsertPoint(mergeBlock);
+    if (mergeUsed) {
+        func->getBasicBlockList().push_back(mergeBlock);
+        kit.builder.SetInsertPoint(mergeBlock);
+    }
+
     return nullptr;
 }
 

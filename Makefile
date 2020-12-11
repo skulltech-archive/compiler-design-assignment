@@ -26,6 +26,20 @@ runoutput: output
 
 clean-runoutput: cleanoutput output runoutput
 
-cleanall: cleancc cleanoutput
-runall: runcc runoutput
-cleanall-runall: cleanall runoutput
+opt.so: c.opt.cpp
+	g++ -g c.opt.cpp `llvm-config --cxxflags --ldflags --libs` -Wall -shared -fPIC -o $@
+
+cleanopt:
+	rm -f opt.so output.opt.ir output.opt.o output.opt 
+
+runopt: opt.so
+	opt -S -load ./opt.so -deadcondbr -deadbr < output.ir | tee output.opt.ir
+	llc -filetype=obj --relocation-model=pic opt.ir -o output.opt.o
+	gcc output.opt.o -o output.opt
+	./output.opt
+
+clean-runopt: cleanopt runopt
+
+cleanall: cleancc cleanoutput cleanopt
+runall: runcc runoutput runopt
+cleanall-runall: cleanall runall
