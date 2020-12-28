@@ -400,45 +400,83 @@ void BinaryExpression::print(ostream &output, const string prefix,
 llvm::Value *BinaryExpression::generateCode(CodeKit &kit) {
     auto *lv = left->generateCode(kit);
     auto *rv = right->generateCode(kit);
-    switch (op) {
-        case BinaryOperator::Multiply:
-            return kit.builder.CreateMul(lv, rv, "mul");
-        case BinaryOperator::Divide:
-            return kit.builder.CreateSDiv(lv, rv, "div");
-            break;
-        case BinaryOperator::Plus:
-            if (lv->getType()->isFloatingPointTy()) {
+
+    if (lv->getType()->isFloatingPointTy()) {
+        switch (op) {
+            case BinaryOperator::Multiply:
+                return kit.builder.CreateFMul(lv, rv, "mul");
+                break;
+            case BinaryOperator::Divide:
+                return kit.builder.CreateFDiv(lv, rv, "div");
+                break;
+            case BinaryOperator::Plus:
                 return kit.builder.CreateFAdd(lv, rv, "add");
-            } else {
+                break;
+            case BinaryOperator::Minus:
+                return kit.builder.CreateFSub(lv, rv, "sub");
+                break;
+            case BinaryOperator::Less:
+                return kit.builder.CreateFCmpOLT(lv, rv, "less");
+                break;
+            case BinaryOperator::Greater:
+                return kit.builder.CreateFCmpOGT(lv, rv, "greater");
+                break;
+            case BinaryOperator::LessEqual:
+                return kit.builder.CreateFCmpOLE(lv, rv, "lesseq");
+                break;
+            case BinaryOperator::GreaterEqual:
+                return kit.builder.CreateFCmpOGE(lv, rv, "greatereq");
+                break;
+            case BinaryOperator::Equal:
+                return kit.builder.CreateFCmpOEQ(lv, rv, "eq");
+                break;
+            case BinaryOperator::NotEqual:
+                return kit.builder.CreateFCmpONE(lv, rv, "noteq");
+                break;
+            default:
+                break;
+        }
+    } else {
+        switch (op) {
+            case BinaryOperator::Multiply:
+                return kit.builder.CreateMul(lv, rv, "mul");
+            case BinaryOperator::Divide:
+                return kit.builder.CreateSDiv(lv, rv, "div");
+                break;
+            case BinaryOperator::Plus:
                 return kit.builder.CreateAdd(lv, rv, "add");
-            }
-            break;
-        case BinaryOperator::Minus:
-            return kit.builder.CreateSub(lv, rv, "sub");
-            break;
+                break;
+            case BinaryOperator::Minus:
+                return kit.builder.CreateSub(lv, rv, "sub");
+                break;
+            case BinaryOperator::Less:
+                return kit.builder.CreateICmpSLT(lv, rv, "less");
+                break;
+            case BinaryOperator::Greater:
+                return kit.builder.CreateICmpSGT(lv, rv, "greater");
+                break;
+            case BinaryOperator::LessEqual:
+                return kit.builder.CreateICmpSLE(lv, rv, "lesseq");
+                break;
+            case BinaryOperator::GreaterEqual:
+                return kit.builder.CreateICmpSGE(lv, rv, "greatereq");
+                break;
+            case BinaryOperator::Equal:
+                return kit.builder.CreateICmpEQ(lv, rv, "eq");
+                break;
+            case BinaryOperator::NotEqual:
+                return kit.builder.CreateICmpNE(lv, rv, "noteq");
+                break;
+            default:
+                break;
+        }
+    }
+    switch (op) {
         case BinaryOperator::Left:
             return kit.builder.CreateShl(lv, rv, "lshift");
             break;
         case BinaryOperator::Right:
             return kit.builder.CreateLShr(lv, rv, "rshift");
-            break;
-        case BinaryOperator::Less:
-            return kit.builder.CreateICmpSLT(lv, rv, "less");
-            break;
-        case BinaryOperator::Greater:
-            return kit.builder.CreateICmpSGT(lv, rv, "greater");
-            break;
-        case BinaryOperator::LessEqual:
-            return kit.builder.CreateICmpSLE(lv, rv, "lesseq");
-            break;
-        case BinaryOperator::GreaterEqual:
-            return kit.builder.CreateICmpSGE(lv, rv, "greatereq");
-            break;
-        case BinaryOperator::Equal:
-            return kit.builder.CreateICmpEQ(lv, rv, "eq");
-            break;
-        case BinaryOperator::NotEqual:
-            return kit.builder.CreateICmpNE(lv, rv, "noteq");
             break;
         case BinaryOperator::BitwiseAnd:
             return kit.builder.CreateAnd(lv, rv, "bitwiseand");
@@ -482,7 +520,7 @@ llvm::Value *CastExpression::generateCode(CodeKit &kit) {
         case TypeSpecifier::Double:
             if (val->getType()->isFloatingPointTy()) {
                 ops = llvm::Instruction::CastOps::FPExt;
-            } else if(val->getType()->isIntegerTy()) {
+            } else if (val->getType()->isIntegerTy()) {
                 ops = llvm::Instruction::CastOps::SIToFP;
             } else {
                 return nullptr;
@@ -491,7 +529,7 @@ llvm::Value *CastExpression::generateCode(CodeKit &kit) {
         case TypeSpecifier::Float:
             if (val->getType()->isFloatingPointTy()) {
                 ops = llvm::Instruction::CastOps::FPTrunc;
-            } else if(val->getType()->isIntegerTy()) {
+            } else if (val->getType()->isIntegerTy()) {
                 ops = llvm::Instruction::CastOps::SIToFP;
             } else {
                 return nullptr;
@@ -503,6 +541,7 @@ llvm::Value *CastExpression::generateCode(CodeKit &kit) {
             } else {
                 return val;
             }
+            break;
         default:
             return nullptr;
             break;
