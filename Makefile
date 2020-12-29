@@ -30,7 +30,7 @@ opt.so: c.opt.cpp
 	g++ -g c.opt.cpp `llvm-config --cxxflags --ldflags --libs` -Wall -shared -fPIC -o $@
 
 output.opt output.opt.ll output.opt.o opt: opt.so output.ll
-	opt -S -load ./opt.so -deadcondbr -deadbr < output.ll | tee output.opt.ll
+	opt -S -load ./opt.so -deadcondbr -deadbr -foldconst < output.ll | tee output.opt.ll
 	llc -filetype=obj --relocation-model=pic output.opt.ll -o output.opt.o
 	gcc output.opt.o -o output.opt
 
