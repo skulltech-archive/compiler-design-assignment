@@ -403,7 +403,7 @@ type_specifier
 	| DOUBLE { $$ = TypeSpecifier::Double; }
 	| SIGNED
 	| UNSIGNED
-	| BOOL
+	| BOOL { $$ = TypeSpecifier::Bool; }
 	| COMPLEX
 	| IMAGINARY	  	/* non-mandated extension */
 	| atomic_type_specifier

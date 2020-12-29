@@ -14,7 +14,7 @@ using namespace std;
 
 ostream &operator<<(ostream &output, const TypeSpecifier &type) {
     const string stringreps[]{"void", "char",  "short", "int",
-                              "long", "float", "double"};
+                              "long", "float", "double", "bool"};
     cout << stringreps[static_cast<int>(type)];
     return output;
 }
@@ -88,6 +88,9 @@ llvm::Type *generateType(TypeSpecifier type, llvm::LLVMContext &context,
             break;
         case TypeSpecifier::Double:
             ty = llvm::Type::getDoubleTy(context);
+            break;
+        case TypeSpecifier::Bool:
+            ty = llvm::Type::getInt1Ty(context);
             break;
         default:
             break;
@@ -542,6 +545,13 @@ llvm::Value *CastExpression::generateCode(CodeKit &kit) {
                 return val;
             }
             break;
+        case TypeSpecifier::Bool:
+            if (val->getType()->isIntegerTy()) {
+                ops = llvm::Instruction::CastOps::Trunc;
+                break;
+            } else {
+                return nullptr;
+            }
         default:
             return nullptr;
             break;
@@ -665,7 +675,8 @@ void Conditional::print(ostream &output, const string prefix,
     output << prefix;
     output << (isFirst ? "├──" : "└──");
     output << "Conditional" << endl;
-    ifstmt->print(output, prefix + (isFirst ? "│   " : "    "), true);
+    condition->print(output, prefix + (isFirst ? "│   " : "    "), true);
+    ifstmt->print(output, prefix + (isFirst ? "│   " : "    "), false);
     if (elsestmt != nullptr) {
         ifstmt->print(output, prefix + (isFirst ? "│   " : "    "), false);
     }

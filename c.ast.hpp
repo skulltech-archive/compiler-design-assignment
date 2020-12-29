@@ -20,7 +20,7 @@
 
 using namespace std;
 
-enum class TypeSpecifier { Void, Char, Short, Int, Long, Float, Double };
+enum class TypeSpecifier { Void, Char, Short, Int, Long, Float, Double, Bool };
 ostream &operator<<(ostream &output, const TypeSpecifier &type);
 
 enum ReferentType { Func, Var };
