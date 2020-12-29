@@ -13,8 +13,6 @@ cleancc:
 output.ll output.bc output.o runcc: cc
 	./cc examples/test.c
 
-clean-runcc: cleancc runcc
-
 output: output.ll output.bc output.o
 	g++ output.o -o output
 
@@ -23,8 +21,6 @@ cleanoutput:
 
 runoutput: output
 	./output
-
-clean-runoutput: cleanoutput runoutput
 
 opt.so: c.opt.cpp
 	g++ -g c.opt.cpp `llvm-config --cxxflags --ldflags --libs` -Wall -shared -fPIC -o $@
@@ -40,8 +36,6 @@ cleanopt:
 runopt: output.opt
 	./output.opt
 
-clean-runopt: cleanopt runopt
-
 cleanall: cleancc cleanoutput cleanopt
+
 runall: runcc runoutput runopt
-cleanall-runall: cleanall runall
